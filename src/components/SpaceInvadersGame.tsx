@@ -3406,7 +3406,7 @@ export function SpaceInvadersGame() {
           <div>
             <span className="text-amber-400 block text-[10px] uppercase font-bold">Hi-Score</span>
             <span className="text-amber-300 font-bold tracking-wider text-sm sm:text-base">
-              {highScore.toString().padStart(5, '0')}
+              {highScore.toLocaleString()}
             </span>
           </div>
 
@@ -3573,13 +3573,13 @@ export function SpaceInvadersGame() {
             <input
               id="pilot-initials-input"
               type="text"
-              maxLength={8}
+              maxLength={10}
               value={initialsInput}
               onChange={(e) => setInitialsInput(e.target.value.toUpperCase())}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') submitHallOfFameScore();
               }}
-              className="px-2 py-1 bg-neutral-900 border border-amber-400 rounded text-amber-300 font-bold text-sm tracking-widest uppercase w-28 text-center"
+              className="px-2 py-1 bg-neutral-900 border border-amber-400 rounded text-amber-300 font-bold text-sm tracking-widest uppercase w-32 text-center"
               autoFocus
             />
           </div>
