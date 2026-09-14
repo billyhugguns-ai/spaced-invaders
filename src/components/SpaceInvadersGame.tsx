@@ -1364,6 +1364,7 @@ export function SpaceInvadersGame() {
 
           // 2. Check bunker protection overhead:
           let directlyUnderActiveBunker = false;
+          let inHoldFireZone = false;
           let bunkerLeftBound = 0;
           let bunkerRightBound = 0;
 
@@ -1372,20 +1373,28 @@ export function SpaceInvadersGame() {
             if (aliveInBunker.length > 0) {
               const minBx = Math.min(...aliveInBunker.map((b) => b.x));
               const maxBx = Math.max(...aliveInBunker.map((b) => b.x + 8));
-              // Widen the safety check to prevent angled shots from destroying the side of the bunker
-              if (p1CenterX >= minBx - 26 && p1CenterX <= maxBx + 26) {
+              
+              // True cover: Center of ship is strictly beneath the bunker
+              if (p1CenterX >= minBx - 6 && p1CenterX <= maxBx + 6) {
                 directlyUnderActiveBunker = true;
                 bunkerLeftBound = minBx;
                 bunkerRightBound = maxBx;
-                break;
               }
+              // Hold fire zone: wider to prevent angled shots from destroying the side of the bunker
+              if (p1CenterX >= minBx - 26 && p1CenterX <= maxBx + 26) {
+                inHoldFireZone = true;
+                if (!directlyUnderActiveBunker) {
+                  bunkerLeftBound = minBx;
+                  bunkerRightBound = maxBx;
+                }
+              }
+              if (directlyUnderActiveBunker || inHoldFireZone) break;
             }
           }
 
           // 3. Movement & Tactical AI Decision Matrix
           let targetPowerUp: PowerUpItem | null = null;
           if (s.powerUps.length > 0) {
-            // Find the lowest (closest to player) power up
             targetPowerUp = s.powerUps.reduce((closest, p) => (p.y > closest.y ? p : closest), s.powerUps[0]);
           }
 
@@ -1393,7 +1402,7 @@ export function SpaceInvadersGame() {
             // HIGH PRIORITY: Threat evasion / juking
             const closestThreat = threatBullets.reduce((min, b) => (b.y > min.y ? b : min), threatBullets[0]);
             
-            // Check if standing under bunker gives protection from this bullet
+            // Check if standing under bunker gives protection from this bullet (must be STRICTLY under it)
             const bulletUnderBunker = directlyUnderActiveBunker && closestThreat.y < 460;
 
             if (!bulletUnderBunker) {
@@ -1448,11 +1457,11 @@ export function SpaceInvadersGame() {
               const livingEnemies = s.enemies.filter((e) => e.health > 0);
               if (livingEnemies.length > 0) {
                 // If standing under own bunker, actively step OUT of bunker shadow to shoot!
-                if (directlyUnderActiveBunker) {
+                if (inHoldFireZone) {
                   // Step either to left or right clear gap of the bunker
-                  const distToLeft = Math.abs(p1CenterX - (bunkerLeftBound - 16));
-                  const distToRight = Math.abs(p1CenterX - (bunkerRightBound + 16));
-                  desiredX = distToLeft < distToRight ? bunkerLeftBound - 18 : bunkerRightBound + 18;
+                  const distToLeft = Math.abs(p1CenterX - (bunkerLeftBound - 28));
+                  const distToRight = Math.abs(p1CenterX - (bunkerRightBound + 28));
+                  desiredX = distToLeft < distToRight ? bunkerLeftBound - 30 : bunkerRightBound + 30;
                 } else {
                   // Lead target by alien fleet movement direction
                   const lowest = livingEnemies.reduce((acc, e) => (e.y > acc.y ? e : acc), livingEnemies[0]);
@@ -1479,9 +1488,9 @@ export function SpaceInvadersGame() {
           }
 
           // 4. SMART TRIGGER SYSTEM (Protect own defenses from self-inflicted damage!)
-          // If the ship is directly under an active bunker block, HOLD FIRE unless using piercing weapon
+          // If the ship is in the hold fire zone, HOLD FIRE unless using piercing weapon
           // or wave weapon that doesn't harm it!
-          if (directlyUnderActiveBunker) {
+          if (inHoldFireZone) {
             // DO NOT SHOOT our own defense bunker!
             s.keys.p1Shoot = false;
           } else {
@@ -1491,7 +1500,7 @@ export function SpaceInvadersGame() {
 
           // 5. Tactical Mortar Deployment:
           // Launch mortar when enemies are dense or boss is active, but only if clear of roof
-          if (s.p1.mortarAmmo > 0 && !directlyUnderActiveBunker && Math.random() < 0.018) {
+          if (s.p1.mortarAmmo > 0 && !inHoldFireZone && Math.random() < 0.018) {
             s.p1.mortarAmmo -= 1;
             soundManager.playMortarLaunch();
             s.bulletIdCounter++;
