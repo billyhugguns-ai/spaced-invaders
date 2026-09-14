@@ -200,7 +200,7 @@ export function SpaceInvadersGame() {
   };
 
   const handleVerifyPassword = () => {
-    if (autoPlayPasswordInput.trim().toLowerCase() === 'wolf') {
+    if (autoPlayPasswordInput.trim() === '666') {
       setIsAutoPlayUnlocked(true);
       setShowAutoPlayPasswordModal(false);
       setAutoPlay(true);
@@ -926,6 +926,24 @@ export function SpaceInvadersGame() {
     // Acceleration after Stage 2 increases faster!
     const stageDropFactor = waveNum >= 2 ? 80 + (waveNum - 2) * 35 : 50;
     s.fleet.stepInterval = Math.max(140, baseTempo - (waveNum - 1) * stageDropFactor);
+
+    // Drop base repair power-up once per level
+    if (waveNum >= 1 && s.bunkers.length > 0) {
+      s.powerUpIdCounter = (s.powerUpIdCounter || 0) + 1;
+      s.powerUps.push({
+        id: s.powerUpIdCounter,
+        x: Math.random() * (VIRTUAL_WIDTH - 60) + 30,
+        y: 0,
+        width: 18,
+        height: 18,
+        vy: 1.2,
+        type: 'repair_base',
+        label: '🔨BASE',
+        name: 'Bunker Repair',
+        color: '#22c55e',
+        glowColor: 'rgba(34, 197, 94, 0.95)'
+      });
+    }
   }, []);
 
   // Insert Coin action
@@ -2603,14 +2621,48 @@ export function SpaceInvadersGame() {
                   alpha: 1,
                   vy: -0.9,
                 });
-              } else if (pu.type === 'mortar_ammo') {
-                p.mortarAmmo = Math.min(12, p.mortarAmmo + 3);
+              } else if (pu.type === 'repair_base') {
+                let repaired = false;
+                for (let i = s.bunkers.length - 1; i >= 0; i--) {
+                  const b = s.bunkers[i];
+                  let needsRepair = false;
+                  for (const blk of b.blocks) {
+                    if (blk.health < 3) {
+                      needsRepair = true;
+                      break;
+                    }
+                  }
+                  if (needsRepair) {
+                    for (const blk of b.blocks) {
+                      blk.health = 3;
+                    }
+                    repaired = true;
+                    break;
+                  }
+                }
+                
+                if (!repaired) p.score += 1000;
+                soundManager.playExtraLife();
+
                 s.floatingIdCounter++;
                 s.floatingTexts.push({
                   id: s.floatingIdCounter,
                   x: p.x - 14,
                   y: p.y - 18,
-                  text: `${p.label} +3 MORTARS (TOTAL: ${p.mortarAmmo})!`,
+                  text: repaired ? `🔨 BASE REPAIRED!` : `🔨 BASE REPAIR BONUS +1000!`,
+                  color: '#22c55e',
+                  alpha: 1,
+                  vy: -0.9,
+                });
+              } else if (pu.type === 'mortar_ammo') {
+                p.mortarAmmo = Math.min(6, p.mortarAmmo + 1);
+                soundManager.playBossWarning(); // distinctive heavy audio for mortar power up
+                s.floatingIdCounter++;
+                s.floatingTexts.push({
+                  id: s.floatingIdCounter,
+                  x: p.x - 14,
+                  y: p.y - 18,
+                  text: `${p.label} +1 MORTAR (TOTAL: ${p.mortarAmmo})!`,
                   color: '#ea580c',
                   alpha: 1,
                   vy: -0.9,
@@ -3837,8 +3889,8 @@ export function SpaceInvadersGame() {
       <div className="w-full max-w-5xl bg-neutral-900 border-x border-b border-neutral-700 rounded-b-xl p-3 sm:p-4 select-none touch-manipulation">
         {/* Tiered Mobile Layout as requested */}
         <div className="flex flex-col gap-2.5 w-full max-w-lg mx-auto">
-          {/* Row 1: ◀, ▶, and FIRE all on the same line. FIRE is to the right of ▶ and 50% the width of an arrow button */}
-          <div className="grid grid-cols-5 gap-2.5 w-full">
+          {/* Row 1: ◀, ▶, and FIRE all on the same line. FIRE is to the right of ▶ and slightly bigger than before */}
+          <div className="flex flex-row gap-2.5 w-full">
             <button
               id="mobile-btn-left"
               onMouseDown={handleTouchP1LeftStart}
@@ -3846,7 +3898,7 @@ export function SpaceInvadersGame() {
               onMouseLeave={handleTouchP1LeftEnd}
               onTouchStart={handleTouchP1LeftStart}
               onTouchEnd={handleTouchP1LeftEnd}
-              className="col-span-2 h-16 sm:h-18 bg-neutral-800 hover:bg-neutral-700 active:bg-emerald-600 text-neutral-100 border-2 border-neutral-600 active:border-emerald-400 rounded-2xl flex items-center justify-center font-bold text-3xl sm:text-4xl cursor-pointer transition-all shadow-lg active:scale-98 select-none"
+              className="flex-[3] h-16 sm:h-18 bg-neutral-800 hover:bg-neutral-700 active:bg-emerald-600 text-neutral-100 border-2 border-neutral-600 active:border-emerald-400 rounded-2xl flex items-center justify-center font-bold text-3xl sm:text-4xl cursor-pointer transition-all shadow-lg active:scale-98 select-none"
               aria-label="Move Left"
             >
               ◀
@@ -3858,7 +3910,7 @@ export function SpaceInvadersGame() {
               onMouseLeave={handleTouchP1RightEnd}
               onTouchStart={handleTouchP1RightStart}
               onTouchEnd={handleTouchP1RightEnd}
-              className="col-span-2 h-16 sm:h-18 bg-neutral-800 hover:bg-neutral-700 active:bg-emerald-600 text-neutral-100 border-2 border-neutral-600 active:border-emerald-400 rounded-2xl flex items-center justify-center font-bold text-3xl sm:text-4xl cursor-pointer transition-all shadow-lg active:scale-98 select-none"
+              className="flex-[3] h-16 sm:h-18 bg-neutral-800 hover:bg-neutral-700 active:bg-emerald-600 text-neutral-100 border-2 border-neutral-600 active:border-emerald-400 rounded-2xl flex items-center justify-center font-bold text-3xl sm:text-4xl cursor-pointer transition-all shadow-lg active:scale-98 select-none"
               aria-label="Move Right"
             >
               ▶
@@ -3867,7 +3919,7 @@ export function SpaceInvadersGame() {
               id="mobile-btn-fire"
               onMouseDown={handleTouchP1Shoot}
               onTouchStart={handleTouchP1Shoot}
-              className="col-span-1 h-16 sm:h-18 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-mono font-bold text-xs sm:text-sm tracking-wide rounded-2xl flex flex-col items-center justify-center border-2 border-red-400 shadow-xl cursor-pointer transition-all active:scale-98 select-none p-1"
+              className="flex-[2] h-16 sm:h-18 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-mono font-bold text-xs sm:text-sm tracking-wide rounded-2xl flex flex-col items-center justify-center border-2 border-red-400 shadow-xl cursor-pointer transition-all active:scale-98 select-none p-1"
               aria-label="Fire Weapon"
             >
               <span>FIRE</span>

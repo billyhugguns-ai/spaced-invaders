@@ -19,7 +19,8 @@ export type PowerUpType =
   | 'shield_charge'
   | 'extra_life'
   | 'smart_bomb'
-  | 'rapid_boost';
+  | 'rapid_boost'
+  | 'repair_base';
 
 export interface Enemy {
   id: number;
