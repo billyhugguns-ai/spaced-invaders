@@ -1526,12 +1526,12 @@ export function SpaceInvadersGame() {
           if (!p.alive || p.lives <= 0 || !shootKey) continue;
 
           const cooldownsByArchetype: Record<WeaponArchetype, number[]> = {
-            vulcan: [260, 210, 170, 130, 95],
-            plasma: [320, 260, 210, 160, 120],
-            missiles: [360, 290, 230, 180, 130],
-            laser: [280, 220, 180, 140, 100],
-            scatter: [340, 280, 220, 170, 120],
-            wave: [300, 240, 190, 150, 110],
+            vulcan: [200, 230, 260, 290, 320],
+            plasma: [240, 280, 320, 360, 400],
+            missiles: [280, 330, 380, 430, 480],
+            laser: [220, 260, 300, 340, 380],
+            scatter: [260, 310, 360, 410, 460],
+            wave: [240, 280, 320, 360, 400],
           };
 
           const effectiveCooldown = cooldownsByArchetype[p.weaponType][p.weaponTier - 1];
@@ -4102,6 +4102,10 @@ export function SpaceInvadersGame() {
                 <button
                   id="submit-bot-password-btn"
                   type="submit"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleVerifyPassword();
+                  }}
                   className="flex-1 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors shadow-md"
                 >
                   UNLOCK BOT
