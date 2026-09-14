@@ -12,7 +12,7 @@ export default function App() {
       className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col items-center justify-between p-3 sm:p-6"
     >
       {/* Top Bar / Navigation */}
-      <header className="w-full max-w-4xl flex items-center justify-between mb-3">
+      <header className="w-full max-w-6xl flex items-center justify-between mb-2">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
             <Gamepad2 className="w-5 h-5" />
@@ -45,7 +45,7 @@ export default function App() {
       </header>
 
       {/* Main Arcade Area */}
-      <main className="w-full flex-1 flex flex-col items-center justify-center max-w-4xl my-auto">
+      <main className="w-full flex-1 flex flex-col items-center justify-center max-w-6xl my-auto">
         <SpaceInvadersGame />
       </main>
 

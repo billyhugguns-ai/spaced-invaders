@@ -3525,7 +3525,7 @@ export function SpaceInvadersGame() {
       }`}
     >
       {/* Arcade Marquee / Header */}
-      <div className="w-full max-w-4xl bg-neutral-900 border-x border-t border-neutral-700 rounded-t-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3 shadow-lg">
+      <div className="w-full max-w-5xl bg-neutral-900 border-x border-t border-neutral-700 rounded-t-xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-lg">
         {/* Scores & Mode */}
         <div className="flex items-center gap-4 sm:gap-6 font-mono text-xs sm:text-sm">
           <div>
@@ -3684,7 +3684,7 @@ export function SpaceInvadersGame() {
       </div>
 
       {/* Screen Cabinet Frame */}
-      <div className="relative w-full max-w-4xl bg-black border border-neutral-700 shadow-2xl overflow-hidden aspect-[4/3] flex items-center justify-center">
+      <div className="relative w-full max-w-5xl bg-black border border-neutral-700 shadow-2xl overflow-hidden aspect-[4/3] flex items-center justify-center">
         <canvas
           id="space-invaders-canvas"
           ref={canvasRef}
@@ -3707,7 +3707,7 @@ export function SpaceInvadersGame() {
 
       {/* Name Entry interactive bezel banner (when player qualifies for Hall of Fame) */}
       {gameState === 'name_entry' && (
-        <div className="w-full max-w-4xl bg-amber-950/40 border-x border-amber-500/50 px-4 py-2.5 flex items-center justify-between gap-3 text-xs font-mono">
+        <div className="w-full max-w-5xl bg-amber-950/40 border-x border-amber-500/50 px-4 py-2.5 flex items-center justify-between gap-3 text-xs font-mono">
           <div className="flex items-center gap-2">
             <Trophy className="w-4 h-4 text-amber-400" />
             <span className="text-amber-300 font-bold">PILOT INITIALS:</span>
@@ -3820,7 +3820,7 @@ export function SpaceInvadersGame() {
       </div>
 
       {/* Touch and Mobile Gameplay Controls */}
-      <div className="w-full max-w-4xl bg-neutral-900 border-x border-b border-neutral-700 rounded-b-xl p-3 sm:p-4 select-none touch-manipulation">
+      <div className="w-full max-w-5xl bg-neutral-900 border-x border-b border-neutral-700 rounded-b-xl p-3 sm:p-4 select-none touch-manipulation">
         {/* Tiered Mobile Layout as requested */}
         <div className="flex flex-col gap-2.5 w-full max-w-lg mx-auto">
           {/* Row 1: Big Arrow Buttons Next to Each Other (large and easy to tap) */}
