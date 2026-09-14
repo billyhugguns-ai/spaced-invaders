@@ -9,7 +9,7 @@ export default function App() {
   return (
     <div
       id="space-invaders-app"
-      className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col items-center justify-between p-3 sm:p-6"
+      className="min-h-screen w-full bg-neutral-950 text-neutral-100 flex flex-col items-center justify-between p-1 sm:p-4 md:p-6"
     >
       {/* Top Bar / Navigation */}
       <header className="w-full max-w-6xl flex items-center justify-between mb-2">
