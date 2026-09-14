@@ -1,4 +1,6 @@
 import { HighScoreEntry, Difficulty, GameMode } from '../types';
+import { db } from '../lib/firebase';
+import { collection, getDocs, addDoc, query, orderBy, limit } from 'firebase/firestore';
 
 const STORAGE_KEY = 'space_invaders_hall_of_fame_v4';
 
@@ -26,24 +28,14 @@ function setCookie(name: string, value: string): void {
   document.cookie = `${name}=${encodeURIComponent(value)};expires=${d.toUTCString()};path=/`;
 }
 
+// --- LOCAL STORAGE (COOKIES) FALLBACK ---
 export function loadHallOfFame(): HighScoreEntry[] {
   if (typeof document === 'undefined') return DEFAULT_HALL_OF_FAME;
   try {
     const raw = getCookie(STORAGE_KEY);
-    if (!raw) {
-      saveHallOfFame(DEFAULT_HALL_OF_FAME);
-      return DEFAULT_HALL_OF_FAME;
-    }
+    if (!raw) return DEFAULT_HALL_OF_FAME;
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      const hasWolfBytes = parsed.some((e: HighScoreEntry) => e.name === 'WOLF-BYTES' && e.score >= 1500000);
-      if (!hasWolfBytes) {
-        const merged = [...parsed.filter((e: HighScoreEntry) => e.name !== 'WOLF-BYTES' && e.name !== 'FI'), DEFAULT_HALL_OF_FAME[0], DEFAULT_HALL_OF_FAME[1]].sort((a, b) => b.score - a.score).slice(0, 5);
-        saveHallOfFame(merged);
-        return merged;
-      }
-      return parsed.slice(0, 5);
-    }
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed.slice(0, 5);
     return DEFAULT_HALL_OF_FAME;
   } catch {
     return DEFAULT_HALL_OF_FAME;
@@ -60,23 +52,38 @@ export function saveHallOfFame(scores: HighScoreEntry[]): void {
   }
 }
 
-export function checkQualifiesForHallOfFame(score: number): boolean {
-  if (score <= 0) return false;
-  const current = loadHallOfFame();
-  if (current.length < 5) return true;
-  return score > current[current.length - 1].score;
+// --- FIRESTORE GLOBAL LEADERBOARD ---
+export async function fetchGlobalHallOfFame(): Promise<HighScoreEntry[]> {
+  try {
+    const scoresRef = collection(db, 'highscores');
+    const q = query(scoresRef, orderBy('score', 'desc'), limit(5));
+    const snapshot = await getDocs(q);
+    
+    const scores: HighScoreEntry[] = [];
+    snapshot.forEach((doc) => {
+      scores.push({ id: doc.id, ...doc.data() } as HighScoreEntry);
+    });
+
+    if (scores.length > 0) {
+      // Sync to local cookies so game starts with latest next time
+      saveHallOfFame(scores);
+      return scores;
+    }
+  } catch (error) {
+    console.error("Error fetching global high scores:", error);
+  }
+  // Fallback to local cookie if network fails
+  return loadHallOfFame();
 }
 
-export function addHallOfFameScore(
+export async function addGlobalHallOfFameScore(
   name: string,
   score: number,
   wave: number,
   mode: GameMode,
   difficulty: Difficulty
-): HighScoreEntry[] {
-  const current = loadHallOfFame();
-  const newEntry: HighScoreEntry = {
-    id: `${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+): Promise<HighScoreEntry[]> {
+  const newEntry = {
     name: (name.trim().toUpperCase() || 'AAA').slice(0, 10),
     score,
     wave,
@@ -85,7 +92,20 @@ export function addHallOfFameScore(
     date: new Date().toISOString().split('T')[0],
   };
 
-  const updated = [...current, newEntry].sort((a, b) => b.score - a.score).slice(0, 5);
-  saveHallOfFame(updated);
-  return updated;
+  try {
+    await addDoc(collection(db, 'highscores'), newEntry);
+  } catch (error) {
+    console.error("Error writing new score to Firebase:", error);
+  }
+
+  // Refetch the top 5 from the global DB and update state
+  return await fetchGlobalHallOfFame();
+}
+
+export function checkQualifiesForHallOfFame(score: number): boolean {
+  if (score <= 0) return false;
+  // Use local cache to check instantly instead of waiting for a network request to avoid UI delay
+  const current = loadHallOfFame();
+  if (current.length < 5) return true;
+  return score > current[current.length - 1].score;
 }

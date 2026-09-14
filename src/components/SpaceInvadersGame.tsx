@@ -39,7 +39,8 @@ import {
 import {
   loadHallOfFame,
   checkQualifiesForHallOfFame,
-  addHallOfFameScore,
+  addGlobalHallOfFameScore,
+  fetchGlobalHallOfFame
 } from '../utils/highScores';
 import { HallOfFameModal } from './HallOfFameModal';
 import { Trophy, Bot, Crosshair, Maximize2, Minimize2, Lock, KeyRound } from 'lucide-react';
@@ -97,6 +98,15 @@ export function SpaceInvadersGame() {
     const hof = loadHallOfFame();
     return hof.length > 0 ? hof[0].score : 0;
   });
+
+  useEffect(() => {
+    fetchGlobalHallOfFame().then(scores => {
+      setHallOfFame(scores);
+      if (scores.length > 0 && scores[0].score > highScore) {
+        setHighScore(scores[0].score);
+      }
+    });
+  }, []);
 
   // Name Entry state for qualifying pilots
   const [initialsInput, setInitialsInput] = useState('AAA');
@@ -1067,14 +1077,14 @@ export function SpaceInvadersGame() {
   };
 
   // Handle Initials Submission for Hall of Fame
-  const submitHallOfFameScore = useCallback(() => {
+  const submitHallOfFameScore = useCallback(async () => {
     if (!qualifyingPlayer) {
       setGameState('game_over');
       stateRef.current.gameState = 'game_over';
       return;
     }
 
-    const updatedScores = addHallOfFameScore(
+    const updatedScores = await addGlobalHallOfFameScore(
       initialsInput,
       qualifyingPlayer.score,
       qualifyingPlayer.wave,
@@ -1083,7 +1093,9 @@ export function SpaceInvadersGame() {
     );
 
     setHallOfFame(updatedScores);
-    setHighScore(updatedScores[0].score);
+    if (updatedScores.length > 0) {
+      setHighScore(updatedScores[0].score);
+    }
     soundManager.playPowerUp();
 
     setQualifyingPlayer(null);
