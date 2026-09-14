@@ -3823,8 +3823,8 @@ export function SpaceInvadersGame() {
       <div className="w-full max-w-5xl bg-neutral-900 border-x border-b border-neutral-700 rounded-b-xl p-3 sm:p-4 select-none touch-manipulation">
         {/* Tiered Mobile Layout as requested */}
         <div className="flex flex-col gap-2.5 w-full max-w-lg mx-auto">
-          {/* Row 1: Big Arrow Buttons Next to Each Other (large and easy to tap) */}
-          <div className="grid grid-cols-2 gap-3 w-full">
+          {/* Row 1: ◀, ▶, and FIRE all on the same line. FIRE is to the right of ▶ and 50% the width of an arrow button */}
+          <div className="grid grid-cols-5 gap-2.5 w-full">
             <button
               id="mobile-btn-left"
               onMouseDown={handleTouchP1LeftStart}
@@ -3832,7 +3832,7 @@ export function SpaceInvadersGame() {
               onMouseLeave={handleTouchP1LeftEnd}
               onTouchStart={handleTouchP1LeftStart}
               onTouchEnd={handleTouchP1LeftEnd}
-              className="h-16 sm:h-18 bg-neutral-800 hover:bg-neutral-700 active:bg-emerald-600 text-neutral-100 border-2 border-neutral-600 active:border-emerald-400 rounded-2xl flex items-center justify-center font-bold text-3xl sm:text-4xl cursor-pointer transition-all shadow-lg active:scale-98 select-none"
+              className="col-span-2 h-16 sm:h-18 bg-neutral-800 hover:bg-neutral-700 active:bg-emerald-600 text-neutral-100 border-2 border-neutral-600 active:border-emerald-400 rounded-2xl flex items-center justify-center font-bold text-3xl sm:text-4xl cursor-pointer transition-all shadow-lg active:scale-98 select-none"
               aria-label="Move Left"
             >
               ◀
@@ -3844,23 +3844,22 @@ export function SpaceInvadersGame() {
               onMouseLeave={handleTouchP1RightEnd}
               onTouchStart={handleTouchP1RightStart}
               onTouchEnd={handleTouchP1RightEnd}
-              className="h-16 sm:h-18 bg-neutral-800 hover:bg-neutral-700 active:bg-emerald-600 text-neutral-100 border-2 border-neutral-600 active:border-emerald-400 rounded-2xl flex items-center justify-center font-bold text-3xl sm:text-4xl cursor-pointer transition-all shadow-lg active:scale-98 select-none"
+              className="col-span-2 h-16 sm:h-18 bg-neutral-800 hover:bg-neutral-700 active:bg-emerald-600 text-neutral-100 border-2 border-neutral-600 active:border-emerald-400 rounded-2xl flex items-center justify-center font-bold text-3xl sm:text-4xl cursor-pointer transition-all shadow-lg active:scale-98 select-none"
               aria-label="Move Right"
             >
               ▶
             </button>
+            <button
+              id="mobile-btn-fire"
+              onMouseDown={handleTouchP1Shoot}
+              onTouchStart={handleTouchP1Shoot}
+              className="col-span-1 h-16 sm:h-18 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-mono font-bold text-xs sm:text-sm tracking-wide rounded-2xl flex flex-col items-center justify-center border-2 border-red-400 shadow-xl cursor-pointer transition-all active:scale-98 select-none p-1"
+              aria-label="Fire Weapon"
+            >
+              <span>FIRE</span>
+              <span className="text-base sm:text-lg leading-tight">💥</span>
+            </button>
           </div>
-
-          {/* Row 2: Underneath - Long Full-Width FIRE Button */}
-          <button
-            id="mobile-btn-fire"
-            onMouseDown={handleTouchP1Shoot}
-            onTouchStart={handleTouchP1Shoot}
-            className="w-full h-14 sm:h-16 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-mono font-bold text-lg sm:text-xl tracking-wider rounded-2xl flex items-center justify-center border-2 border-red-400 shadow-xl cursor-pointer transition-all active:scale-98 select-none"
-            aria-label="Fire Weapon"
-          >
-            FIRE 💥
-          </button>
 
           {/* Row 3: Underneath - Mortar on Left, Shield on Right */}
           <div className="grid grid-cols-2 gap-3 w-full">
