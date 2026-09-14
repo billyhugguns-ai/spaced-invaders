@@ -1055,6 +1055,49 @@ export function SpaceInvadersGame() {
     s.gameState = 'playing';
   }, [createBunkers, spawnFleet]);
 
+  // Continue game from same wave
+  const continueGame = useCallback(() => {
+    const s = stateRef.current;
+    if (s.credits <= 0) {
+      soundManager.playEnemyShoot();
+      return;
+    }
+
+    // Deduct 1 credit for 1P, 2 credits for 2P if available, or at least 1
+    setCredits((prev) => {
+      const cost = s.gameMode === '2p' && prev >= 2 ? 2 : 1;
+      const next = Math.max(0, prev - cost);
+      s.credits = next;
+      return next;
+    });
+
+    // Restore Lives
+    let baseLives = 3;
+    if (s.difficulty === 'easy') baseLives = 4;
+    if (s.difficulty === 'hard') baseLives = 2;
+
+    s.p1.lives = baseLives;
+    s.p1.alive = true;
+    s.p1.invulnerableUntil = Date.now() + 3000;
+    
+    if (s.gameMode === '2p') {
+      s.p2.lives = baseLives;
+      s.p2.alive = true;
+      s.p2.invulnerableUntil = Date.now() + 3000;
+    }
+
+    // Restart current wave completely
+    s.bullets = [];
+    s.particles = [];
+    s.powerUps = [];
+    s.bombExplosions = [];
+    s.bunkers = createBunkers();
+    spawnFleet(s.wave, s.difficulty);
+
+    setGameState('playing');
+    s.gameState = 'playing';
+  }, [createBunkers, spawnFleet]);
+
   // Restart game
   const restartGame = useCallback(() => {
     if (stateRef.current.credits > 0) {
@@ -1192,8 +1235,10 @@ export function SpaceInvadersGame() {
       } else if (e.code === 'KeyD' || (s.gameMode === '1p' && e.code === 'ArrowRight')) {
         s.keys.p1Right = true;
       } else if (e.code === 'Space' || (s.gameMode === '1p' && e.code === 'ArrowUp')) {
-        if (s.gameState === 'title' || s.gameState === 'game_over') {
+        if (s.gameState === 'title') {
           startGame();
+        } else if (s.gameState === 'game_over') {
+          continueGame();
         } else if (s.gameState === 'playing') {
           s.keys.p1Shoot = true;
         }
@@ -1289,7 +1334,7 @@ export function SpaceInvadersGame() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [insertCoin, startGame, restartGame, togglePause, deployShield, submitHallOfFameScore]);
+  }, [insertCoin, startGame, continueGame, restartGame, togglePause, deployShield, submitHallOfFameScore]);
 
   // Main 60FPS Game Loop
   useEffect(() => {
@@ -3535,8 +3580,11 @@ export function SpaceInvadersGame() {
   };
   const handleTouchP1Shoot = (e: React.TouchEvent | React.MouseEvent) => {
     e.preventDefault();
-    if (stateRef.current.gameState === 'title' || stateRef.current.gameState === 'game_over') {
+    if (stateRef.current.gameState === 'title') {
       if (stateRef.current.credits > 0) startGame();
+      else insertCoin();
+    } else if (stateRef.current.gameState === 'game_over') {
+      if (stateRef.current.credits > 0) continueGame();
       else insertCoin();
     } else {
       stateRef.current.keys.p1Shoot = true;
@@ -3782,8 +3830,11 @@ export function SpaceInvadersGame() {
           width={VIRTUAL_WIDTH}
           height={VIRTUAL_HEIGHT}
           onClick={() => {
-            if (gameState === 'title' || gameState === 'game_over') {
+            if (gameState === 'title') {
               if (credits > 0) startGame();
+              else insertCoin();
+            } else if (gameState === 'game_over') {
+              if (credits > 0) continueGame();
               else insertCoin();
             }
           }}
