@@ -1363,8 +1363,6 @@ export function SpaceInvadersGame() {
           );
 
           // 2. Check bunker protection overhead:
-          // Is the bot currently standing under an alive bunker block?
-          // If so, shooting vulcan/plasma will destroy our own cover unless we shoot through a gap!
           let directlyUnderActiveBunker = false;
           let bunkerLeftBound = 0;
           let bunkerRightBound = 0;
@@ -1374,8 +1372,8 @@ export function SpaceInvadersGame() {
             if (aliveInBunker.length > 0) {
               const minBx = Math.min(...aliveInBunker.map((b) => b.x));
               const maxBx = Math.max(...aliveInBunker.map((b) => b.x + 8));
-              // Player width is 24; check if center is underneath
-              if (p1CenterX >= minBx - 6 && p1CenterX <= maxBx + 6) {
+              // Widen the safety check to prevent angled shots from destroying the side of the bunker
+              if (p1CenterX >= minBx - 26 && p1CenterX <= maxBx + 26) {
                 directlyUnderActiveBunker = true;
                 bunkerLeftBound = minBx;
                 bunkerRightBound = maxBx;
@@ -1385,6 +1383,12 @@ export function SpaceInvadersGame() {
           }
 
           // 3. Movement & Tactical AI Decision Matrix
+          let targetPowerUp: PowerUpItem | null = null;
+          if (s.powerUps.length > 0) {
+            // Find the lowest (closest to player) power up
+            targetPowerUp = s.powerUps.reduce((closest, p) => (p.y > closest.y ? p : closest), s.powerUps[0]);
+          }
+
           if (threatBullets.length > 0) {
             // HIGH PRIORITY: Threat evasion / juking
             const closestThreat = threatBullets.reduce((min, b) => (b.y > min.y ? b : min), threatBullets[0]);
@@ -1406,6 +1410,18 @@ export function SpaceInvadersGame() {
               if (closestThreat.y > s.p1.y - 38 && s.p1.shieldsRemaining > 0 && s.p1.shieldActiveUntil < Date.now()) {
                 deployShield(1);
               }
+            }
+          } else if (targetPowerUp) {
+            // SECOND PRIORITY: Chase powerups!
+            if (p1CenterX < targetPowerUp.x - 4) {
+              s.keys.p1Right = true;
+              s.keys.p1Left = false;
+            } else if (p1CenterX > targetPowerUp.x + 4) {
+              s.keys.p1Left = true;
+              s.keys.p1Right = false;
+            } else {
+              s.keys.p1Left = false;
+              s.keys.p1Right = false;
             }
           } else {
             // TACTICAL COMBAT MANEUVERS (autonomous strafing, flanking, and leading shots)
