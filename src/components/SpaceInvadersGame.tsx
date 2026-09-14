@@ -2707,6 +2707,7 @@ export function SpaceInvadersGame() {
               } else {
                 p.invulnerableUntil = Date.now() + 2200;
               }
+              p.mortarAmmo = 3;
               break;
             }
           }
@@ -2759,6 +2760,7 @@ export function SpaceInvadersGame() {
               const pDist = Math.hypot(p.x + p.width / 2 - be.x, p.y + p.height / 2 - be.y);
               if (pDist <= be.radius * 0.8) {
                 p.lives -= 1;
+                p.mortarAmmo = 3;
                 p.invulnerableUntil = expNow + 2200;
                 soundManager.playPlayerHit();
                 triggerScreenShake(14, 600);
