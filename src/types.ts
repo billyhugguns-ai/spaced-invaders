@@ -1,14 +1,17 @@
-export type EnemyType = 'squid' | 'crab' | 'octopus' | 'ufo' | 'elite_ufo';
+export type EnemyType = 'squid' | 'crab' | 'octopus' | 'ufo' | 'elite_ufo' | 'armored' | 'hunter' | 'glider';
 export type Difficulty = 'easy' | 'medium' | 'hard';
 export type GameMode = '1p' | '2p';
 export type WeaponTier = 1 | 2 | 3 | 4 | 5;
-export type WeaponArchetype = 'vulcan' | 'plasma' | 'missiles' | 'laser';
+export type WeaponArchetype = 'vulcan' | 'plasma' | 'missiles' | 'laser' | 'scatter' | 'wave';
 
 export type PowerUpType =
   | 'weapon_vulcan'
   | 'weapon_plasma'
   | 'weapon_missiles'
   | 'weapon_laser'
+  | 'weapon_scatter'
+  | 'weapon_wave'
+  | 'mortar_ammo'
   | 'shield_charge'
   | 'extra_life'
   | 'smart_bomb'
@@ -44,6 +47,11 @@ export interface Bullet {
   piercing?: boolean;
   isHoming?: boolean;
   isMothershipBomb?: boolean;
+  isDud?: boolean;
+  isMortar?: boolean;
+  targetY?: number;
+  mortarRadius?: number;
+  isAlienBomb?: boolean;
   bombHealth?: number;
   targetEnemyId?: number;
   trail?: { x: number; y: number }[];
@@ -122,6 +130,10 @@ export interface BossEnemy {
   points: number;
   speed: number;
   vx: number;
+  leftTurretHealth: number;
+  rightTurretHealth: number;
+  dropTimer: number;
+  nextDropTime: number;
   evasionCooldown: number; // AI avoidance reaction timer
   evasionActive: boolean;
   evasionDir: number;
@@ -169,7 +181,9 @@ export interface PlayerData {
   score: number;
   weaponType: WeaponArchetype;
   weaponTier: WeaponTier;
-  weaponTimeRemaining: number; // in milliseconds (e.g. 60,000ms = 60s)
+  weaponAmmo: number; // random pool between 30 and 60
+  mortarAmmo: number;
+  mortarChargeStart: number;
   shieldsRemaining: number;     // starts at 3
   shieldActiveUntil: number;    // timestamp ms when shield expires (3 seconds active)
   lastShot: number;

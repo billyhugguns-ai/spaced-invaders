@@ -25,7 +25,7 @@ export default function App() {
               </span>
             </h1>
             <p className="text-xs text-neutral-400 hidden sm:block">
-              1P: A/D + SPACE (ENTER: Shield) &bull; 2P: ←/→ + ↑ (↓: Shield) &bull; Stage 3 AI Dreadnought Boss &bull; Top 5 Hall of Fame
+              1P: A/D + SPACE (ENTER: Shield) &bull; 2P: ←/→ + ↑ (↓: Shield) &bull; Stage 5 AI Dreadnought Boss &bull; Top 5 Hall of Fame
             </p>
           </div>
         </div>
@@ -53,7 +53,7 @@ export default function App() {
       <footer className="w-full max-w-4xl mt-3 pt-2 border-t border-neutral-900 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-neutral-400 font-mono">
         <div className="flex items-center gap-2 text-center sm:text-left">
           <Info className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-          <span>Mothership drops: ⚡Weapons (60s), 🛡️1-in-5 Shields (3s), ❤️1-in-25 1UP &bull; Stage 3 AI Boss Avoidance</span>
+          <span>Mothership drops: ⚡Weapons (60s), 🛡️1-in-5 Shields (3s), ❤️1-in-25 1UP &bull; Stage 5 AI Boss Avoidance</span>
         </div>
         <div className="text-neutral-400">
           Stage 2+ descent accelerates quicker &bull; Top 5 Hall of Fame in Local Storage

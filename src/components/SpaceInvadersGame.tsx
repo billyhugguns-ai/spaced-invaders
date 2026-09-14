@@ -9,6 +9,9 @@ import {
   PLAYER_P1_SPRITE,
   PLAYER_P2_SPRITE,
   BOSS_DREADNOUGHT_SPRITE,
+  ARMORED_SPRITE,
+  HUNTER_SPRITE,
+  GLIDER_SPRITE,
   drawPixelPattern,
   drawPowerUpCapsule,
   drawMissile,
@@ -39,7 +42,7 @@ import {
   addHallOfFameScore,
 } from '../utils/highScores';
 import { HallOfFameModal } from './HallOfFameModal';
-import { Trophy } from 'lucide-react';
+import { Trophy, Bot, Crosshair } from 'lucide-react';
 
 const VIRTUAL_WIDTH = 800;
 const VIRTUAL_HEIGHT = 600;
@@ -83,7 +86,8 @@ export function SpaceInvadersGame() {
     lives: number;
     weaponTier: WeaponTier;
     weaponType: WeaponArchetype;
-    weaponTime: number;
+    weaponAmmo: number;
+    mortarAmmo: number;
     shields: number;
     shieldActive: boolean;
     alive: boolean;
@@ -92,7 +96,8 @@ export function SpaceInvadersGame() {
     lives: 3,
     weaponTier: 1,
     weaponType: 'vulcan',
-    weaponTime: 0,
+    weaponAmmo: 0,
+    mortarAmmo: 3,
     shields: 3,
     shieldActive: false,
     alive: true,
@@ -103,7 +108,8 @@ export function SpaceInvadersGame() {
     lives: number;
     weaponTier: WeaponTier;
     weaponType: WeaponArchetype;
-    weaponTime: number;
+    weaponAmmo: number;
+    mortarAmmo: number;
     shields: number;
     shieldActive: boolean;
     alive: boolean;
@@ -112,11 +118,15 @@ export function SpaceInvadersGame() {
     lives: 3,
     weaponTier: 1,
     weaponType: 'vulcan',
-    weaponTime: 0,
+    weaponAmmo: 0,
+    mortarAmmo: 3,
     shields: 3,
     shieldActive: false,
     alive: true,
   });
+
+  const [autoPlay, setAutoPlay] = useState(false);
+  const [autoPlayDebug, setAutoPlayDebug] = useState(true);
 
   // Mutable reference for 60FPS animation loop
   const stateRef = useRef({
@@ -134,6 +144,7 @@ export function SpaceInvadersGame() {
       p1Shoot: false,
       p1Shield: false,
       p1Bomb: false,
+      p1Mortar: false,
       p2Left: false,
       p2Right: false,
       p2Shoot: false,
@@ -151,7 +162,9 @@ export function SpaceInvadersGame() {
       score: 0,
       weaponType: 'vulcan' as WeaponArchetype,
       weaponTier: 1 as WeaponTier,
-      weaponTimeRemaining: 0,
+      weaponAmmo: 0,
+      mortarAmmo: 3, // starts with 3 mortars!
+      mortarChargeStart: 0,
       shieldsRemaining: 3,
       shieldActiveUntil: 0,
       lastShot: 0,
@@ -171,7 +184,9 @@ export function SpaceInvadersGame() {
       score: 0,
       weaponType: 'vulcan' as WeaponArchetype,
       weaponTier: 1 as WeaponTier,
-      weaponTimeRemaining: 0,
+      weaponAmmo: 0,
+      mortarAmmo: 3,
+      mortarChargeStart: 0,
       shieldsRemaining: 3,
       shieldActiveUntil: 0,
       lastShot: 0,
@@ -243,6 +258,8 @@ export function SpaceInvadersGame() {
     warningBanner: false,
     warningText: '',
     warningTimer: 0,
+    autoPlay: false,
+    autoPlayDebug: true,
   });
 
   // Sync settings with ref
@@ -261,6 +278,14 @@ export function SpaceInvadersGame() {
   useEffect(() => {
     stateRef.current.credits = credits;
   }, [credits]);
+
+  useEffect(() => {
+    stateRef.current.autoPlay = autoPlay;
+  }, [autoPlay]);
+
+  useEffect(() => {
+    stateRef.current.autoPlayDebug = autoPlayDebug;
+  }, [autoPlayDebug]);
 
   // Initialize stars once
   useEffect(() => {
@@ -561,12 +586,12 @@ export function SpaceInvadersGame() {
     const s = stateRef.current;
     s.bullets = [];
 
-    // Boss Level check: Every 3rd wave is a Boss Encounter with AI Avoidance routine!
-    const isBossWave = waveNum % 3 === 0;
+    // Boss Level check: Every 5th wave is a Boss Encounter with AI Avoidance routine!
+    const isBossWave = waveNum % 5 === 0;
 
     if (isBossWave) {
       // Initialize Dreadnought Boss
-      const bossHp = (diff === 'hard' ? 55 : diff === 'medium' ? 38 : 26) + (Math.floor(waveNum / 3) - 1) * 15;
+      const bossHp = (diff === 'hard' ? 55 : diff === 'medium' ? 38 : 26) + (Math.floor(waveNum / 5) - 1) * 15;
       s.boss = {
         active: true,
         x: VIRTUAL_WIDTH / 2 - 44,
@@ -588,6 +613,10 @@ export function SpaceInvadersGame() {
         name: `DREADNOUGHT MK-${Math.floor(waveNum / 3)}`,
         shieldActive: false,
         shieldHealth: 0,
+        leftTurretHealth: 10,
+        rightTurretHealth: 10,
+        dropTimer: 0,
+        nextDropTime: 30000 + Math.random() * 30000,
       };
       s.enemies = [];
       setBossActive(true);
@@ -610,7 +639,8 @@ export function SpaceInvadersGame() {
     const spacingX = 48;
     const spacingY = 36;
     const startX = (VIRTUAL_WIDTH - cols * spacingX) / 2 + 10;
-    const startY = Math.min(75 + (waveNum - 1) * 14, 150);
+    // Keep fleet well clear of the bottom: starts high up and gently advances by wave
+    const startY = Math.min(68 + (waveNum - 1) * 8, 115);
 
     let id = 0;
     for (let r = 0; r < rows; r++) {
@@ -631,6 +661,29 @@ export function SpaceInvadersGame() {
       const health = diff === 'hard' && r === 0 ? 2 : 1;
 
       for (let c = 0; c < cols; c++) {
+        let actualType = type;
+        let actualPoints = points;
+        let actualColor = color;
+        let actualHealth = health;
+
+        if (waveNum > 1 && Math.random() < Math.min(0.3, 0.05 + waveNum * 0.02)) {
+          const rType = Math.random();
+          if (rType < 0.33) {
+            actualType = 'armored';
+            actualPoints = 40;
+            actualColor = '#94a3b8'; // Slate
+            actualHealth = 2 + Math.floor(waveNum / 5);
+          } else if (rType < 0.66) {
+            actualType = 'hunter';
+            actualPoints = 35;
+            actualColor = '#ef4444'; // Red
+          } else {
+            actualType = 'glider';
+            actualPoints = 25;
+            actualColor = '#fcd34d'; // Yellow
+          }
+        }
+
         id++;
         enemies.push({
           id,
@@ -638,11 +691,11 @@ export function SpaceInvadersGame() {
           y: startY + r * spacingY,
           width: 36,
           height: 24,
-          type,
-          points,
-          health,
-          maxHealth: health,
-          color,
+          type: actualType,
+          points: actualPoints,
+          health: actualHealth,
+          maxHealth: actualHealth,
+          color: actualColor,
         });
       }
     }
@@ -736,7 +789,7 @@ export function SpaceInvadersGame() {
     s.p1.alive = true;
     s.p1.weaponType = 'vulcan';
     s.p1.weaponTier = 1;
-    s.p1.weaponTimeRemaining = 0;
+    s.p1.weaponAmmo = 0;
     s.p1.shieldsRemaining = 3; // 3 shields that last 3 seconds
     s.p1.shieldActiveUntil = 0;
     s.p1.x = s.gameMode === '2p' ? 320 : VIRTUAL_WIDTH / 2 - SHIP_WIDTH / 2;
@@ -749,7 +802,7 @@ export function SpaceInvadersGame() {
     s.p2.alive = s.gameMode === '2p';
     s.p2.weaponType = 'vulcan';
     s.p2.weaponTier = 1;
-    s.p2.weaponTimeRemaining = 0;
+    s.p2.weaponAmmo = 0;
     s.p2.shieldsRemaining = 3;
     s.p2.shieldActiveUntil = 0;
     s.p2.x = 450;
@@ -913,6 +966,12 @@ export function SpaceInvadersGame() {
         }
       } else if (e.code === 'Enter') {
         deployShield(1);
+      } else if (e.code === 'KeyM') {
+        // Start charging mortar shell
+        if (s.gameState === 'playing' && s.p1.alive && s.p1.mortarAmmo > 0 && !s.keys.p1Mortar) {
+          s.keys.p1Mortar = true;
+          s.p1.mortarChargeStart = Date.now();
+        }
       }
 
       // Player 2 Controls
@@ -948,6 +1007,35 @@ export function SpaceInvadersGame() {
         s.keys.p1Right = false;
       } else if (e.code === 'Space' || (s.gameMode === '1p' && e.code === 'ArrowUp')) {
         s.keys.p1Shoot = false;
+      } else if (e.code === 'KeyM') {
+        if (s.keys.p1Mortar && s.p1.mortarAmmo > 0) {
+          s.keys.p1Mortar = false;
+          const holdTime = Math.min(2500, Math.max(150, Date.now() - (s.p1.mortarChargeStart || Date.now())));
+          s.p1.mortarAmmo -= 1;
+
+          // The longer held, the higher (lower Y coordinate) it goes!
+          // Min hold -> targetY ~ 420; Max hold (2.5s) -> targetY ~ 80
+          const chargeRatio = (holdTime - 150) / 2350; // 0 to 1
+          const targetY = 420 - chargeRatio * 340; // 420 down to 80
+
+          soundManager.playMortarLaunch();
+          s.bulletIdCounter++;
+          s.bullets.push({
+            id: s.bulletIdCounter,
+            x: s.p1.x + s.p1.width / 2,
+            y: s.p1.y - 6,
+            width: 8,
+            height: 10,
+            speedY: -6.5,
+            color: '#f97316',
+            isPlayer: true,
+            playerId: 1,
+            isMortar: true,
+            targetY,
+            mortarRadius: 55 + chargeRatio * 20, // larger blast if charged longer
+            damage: 4 + Math.round(chargeRatio * 2),
+          });
+        }
       }
 
       // Player 2
@@ -1028,28 +1116,81 @@ export function SpaceInvadersGame() {
           }
         }
 
-        // 2. Player Weapon Expiration Timer: "have it reduced power slowly over a 10 to 22nd ratio"
-        for (const p of [s.p1, s.p2]) {
-          if (!p.alive || p.lives <= 0) continue;
-          if (p.weaponTier > 1) {
-            p.weaponTimeRemaining -= dt;
-            if (p.weaponTimeRemaining <= 0) {
-              // Drops down one level!
-              p.weaponTier = (p.weaponTier - 1) as WeaponTier;
-              // 15 seconds per tier step (10 to 22 second ratio)
-              p.weaponTimeRemaining = p.weaponTier > 1 ? 15000 : 0;
 
-              s.floatingIdCounter++;
-              s.floatingTexts.push({
-                id: s.floatingIdCounter,
-                x: p.x - 10,
-                y: p.y - 16,
-                text: `${p.label} WEAPON DECAY: LVL ${p.weaponTier}`,
-                color: '#f97316',
-                alpha: 1,
-                vy: -0.7,
-              });
+        // AUTO-PLAY BOT LOGIC (if enabled)
+        if (s.autoPlay && s.p1.alive && s.p1.lives > 0) {
+          // 1. Identify incoming threats (enemy bullets heading down near p1.x)
+          const p1CenterX = s.p1.x + s.p1.width / 2;
+          const threatBullets = s.bullets.filter(
+            (b) => !b.isPlayer && b.speedY > 0 && b.y > 220 && Math.abs(b.x - p1CenterX) < 55
+          );
+
+          if (threatBullets.length > 0) {
+            // Dodge away from closest bullet
+            const closestThreat = threatBullets.reduce((min, b) => (b.y > min.y ? b : min), threatBullets[0]);
+            if (closestThreat.x < p1CenterX && s.p1.x < VIRTUAL_WIDTH - s.p1.width - 24) {
+              s.keys.p1Right = true;
+              s.keys.p1Left = false;
+            } else if (closestThreat.x >= p1CenterX && s.p1.x > 24) {
+              s.keys.p1Left = true;
+              s.keys.p1Right = false;
             }
+
+            // Emergency auto-shield if bullet is critical close (< 35px) and unshielded
+            if (closestThreat.y > s.p1.y - 35 && s.p1.shieldsRemaining > 0 && s.p1.shieldActiveUntil < Date.now()) {
+              deployShield(1);
+            }
+          } else {
+            // 2. Track & Target: Align with lowest alive enemy or boss
+            let targetX = VIRTUAL_WIDTH / 2;
+            if (s.boss.active) {
+              targetX = s.boss.x + s.boss.width / 2;
+            } else {
+              const livingEnemies = s.enemies.filter((e) => e.health > 0);
+              if (livingEnemies.length > 0) {
+                // Find enemy with lowest Y that is closest to current player
+                const lowest = livingEnemies.reduce((acc, e) => (e.y > acc.y ? e : acc), livingEnemies[0]);
+                targetX = lowest.x + lowest.width / 2;
+              }
+            }
+
+            if (Math.abs(p1CenterX - targetX) > 8) {
+              if (p1CenterX < targetX && s.p1.x < VIRTUAL_WIDTH - s.p1.width - 24) {
+                s.keys.p1Right = true;
+                s.keys.p1Left = false;
+              } else if (p1CenterX > targetX && s.p1.x > 24) {
+                s.keys.p1Left = true;
+                s.keys.p1Right = false;
+              }
+            } else {
+              s.keys.p1Left = false;
+              s.keys.p1Right = false;
+            }
+          }
+
+          // Auto-shoot continuously
+          s.keys.p1Shoot = true;
+
+          // Auto-launch mortar if ammo available and group of enemies or boss present
+          if (s.p1.mortarAmmo > 0 && Math.random() < 0.015) {
+            s.p1.mortarAmmo -= 1;
+            soundManager.playMortarLaunch();
+            s.bulletIdCounter++;
+            s.bullets.push({
+              id: s.bulletIdCounter,
+              x: s.p1.x + s.p1.width / 2,
+              y: s.p1.y - 6,
+              width: 8,
+              height: 10,
+              speedY: -6.5,
+              color: '#f97316',
+              isPlayer: true,
+              playerId: 1,
+              isMortar: true,
+              targetY: 100 + Math.random() * 150,
+              mortarRadius: 55,
+              damage: 4,
+            });
           }
         }
 
@@ -1086,6 +1227,8 @@ export function SpaceInvadersGame() {
             plasma: [320, 260, 210, 160, 120],
             missiles: [360, 290, 230, 180, 130],
             laser: [280, 220, 180, 140, 100],
+            scatter: [340, 280, 220, 170, 120],
+            wave: [300, 240, 190, 150, 110],
           };
 
           const effectiveCooldown = cooldownsByArchetype[p.weaponType][p.weaponTier - 1];
@@ -1095,6 +1238,26 @@ export function SpaceInvadersGame() {
           if (time - p.lastShot > effectiveCooldown && playerBullets < maxBullets) {
             p.lastShot = time;
             soundManager.playUpgradedLaser(p.weaponTier);
+
+            // Ammo decay logic
+            if (p.weaponTier > 1) {
+              p.weaponAmmo -= 1;
+              if (p.weaponAmmo <= 0) {
+                p.weaponTier = (p.weaponTier - 1) as WeaponTier;
+                p.weaponAmmo = p.weaponTier > 1 ? 30 + Math.floor(Math.random() * 31) : 0;
+                
+                s.floatingIdCounter++;
+                s.floatingTexts.push({
+                  id: s.floatingIdCounter,
+                  x: p.x - 10,
+                  y: p.y - 16,
+                  text: `${p.label} WEAPON DECAY: LVL ${p.weaponTier}`,
+                  color: '#f97316',
+                  alpha: 1,
+                  vy: -0.7,
+                });
+              }
+            }
 
             const px = p.x + p.width / 2;
             const py = p.y - 4;
@@ -1236,6 +1399,7 @@ export function SpaceInvadersGame() {
                   playerId: p.id,
                   damage: 2,
                   isHoming: true,
+                  isDud: Math.random() < 0.125,
                 });
               }
             } else if (p.weaponType === 'laser') {
@@ -1254,6 +1418,44 @@ export function SpaceInvadersGame() {
                 damage: p.weaponTier >= 4 ? 3 : 2,
                 piercing: true,
               });
+            } else if (p.weaponType === 'scatter') {
+              const pelletCount = p.weaponTier >= 4 ? 6 : p.weaponTier >= 2 ? 4 : 3;
+              for (let i = 0; i < pelletCount; i++) {
+                const spreadAngle = (i - (pelletCount - 1) / 2) * 1.8;
+                s.bulletIdCounter++;
+                s.bullets.push({
+                  id: s.bulletIdCounter,
+                  x: px,
+                  y: py,
+                  vx: spreadAngle,
+                  width: 4,
+                  height: 10,
+                  speedY: -9.0,
+                  color: '#eab308',
+                  isPlayer: true,
+                  playerId: p.id,
+                  damage: p.weaponTier >= 3 ? 2 : 1,
+                });
+              }
+            } else if (p.weaponType === 'wave') {
+              const waveCount = p.weaponTier >= 4 ? 3 : p.weaponTier >= 2 ? 2 : 1;
+              for (let i = 0; i < waveCount; i++) {
+                const off = (i - (waveCount - 1) / 2) * 16;
+                s.bulletIdCounter++;
+                s.bullets.push({
+                  id: s.bulletIdCounter,
+                  x: px + off,
+                  y: py,
+                  width: 20 + p.weaponTier * 3,
+                  height: 6,
+                  speedY: -11,
+                  color: '#10b981',
+                  isPlayer: true,
+                  playerId: p.id,
+                  damage: p.weaponTier >= 3 ? 2 : 1,
+                  piercing: true,
+                });
+              }
             }
           }
         }
@@ -1298,8 +1500,10 @@ export function SpaceInvadersGame() {
             boss.evasionActive = true;
             boss.evasionDir = escapeDir;
             boss.evasionTimer = 320;
-            boss.evasionCooldown = time + (boss.phase === 3 ? 450 : 650);
-            boss.vx = escapeDir * (6.5 + (boss.phase === 3 ? 2.5 : 1.0));
+            const cooldownMult = Math.max(1, 15 / s.wave);
+            boss.evasionCooldown = time + (boss.phase === 3 ? 450 : 650) * cooldownMult;
+            const speedMult = Math.min(1, Math.max(0.4, s.wave / 15));
+            boss.vx = escapeDir * (6.5 + (boss.phase === 3 ? 2.5 : 1.0)) * speedMult;
 
             soundManager.playBossEvasion();
             triggerScreenShake(3, 160);
@@ -1343,9 +1547,18 @@ export function SpaceInvadersGame() {
             }
           }
 
+          // Boss Descent Logic
+          boss.dropTimer += dt;
+          if (boss.dropTimer >= boss.nextDropTime) {
+            boss.dropTimer = 0;
+            boss.nextDropTime = 30000 + Math.random() * 30000;
+            boss.y += 25;
+            if (boss.y > 450) boss.y = 450;
+          }
+
           // AI Attack Routine
           boss.attackTimer += dt;
-          const attackInterval = boss.phase === 3 ? 650 : boss.phase === 2 ? 950 : 1300;
+          const attackInterval = boss.phase === 3 ? 900 : boss.phase === 2 ? 1400 : 2000;
 
           if (boss.attackTimer >= attackInterval) {
             boss.attackTimer = 0;
@@ -1356,7 +1569,12 @@ export function SpaceInvadersGame() {
 
             if (boss.phase === 1) {
               // Twin plasma bolts
-              [-20, 20].forEach((off) => {
+              const offsets = [];
+              if (boss.leftTurretHealth > 0) offsets.push(-20);
+              if (boss.rightTurretHealth > 0) offsets.push(20);
+              if (offsets.length === 0) offsets.push(0); // fallback if both destroyed
+
+              offsets.forEach((off) => {
                 s.bulletIdCounter++;
                 s.bullets.push({
                   id: s.bulletIdCounter,
@@ -1372,7 +1590,11 @@ export function SpaceInvadersGame() {
               });
             } else if (boss.phase === 2) {
               // 3-way spread attack
-              [-2.0, 0, 2.0].forEach((ang) => {
+              const angles = [0];
+              if (boss.leftTurretHealth > 0) angles.push(-2.0);
+              if (boss.rightTurretHealth > 0) angles.push(2.0);
+
+              angles.forEach((ang) => {
                 s.bulletIdCounter++;
                 s.bullets.push({
                   id: s.bulletIdCounter,
@@ -1389,7 +1611,11 @@ export function SpaceInvadersGame() {
               });
             } else {
               // Phase 3 Berserk Overdrive: 5-way spiral storm
-              [-3.2, -1.6, 0, 1.6, 3.2].forEach((ang) => {
+              const angles = [0];
+              if (boss.leftTurretHealth > 0) { angles.push(-1.6); angles.push(-3.2); }
+              if (boss.rightTurretHealth > 0) { angles.push(1.6); angles.push(3.2); }
+
+              angles.forEach((ang) => {
                 s.bulletIdCounter++;
                 s.bullets.push({
                   id: s.bulletIdCounter,
@@ -1438,7 +1664,8 @@ export function SpaceInvadersGame() {
                 s.fleet.dropPending = false;
                 s.fleet.direction *= -1;
 
-                const dropAmount = s.wave >= 2 ? 22 + (s.wave - 2) * 3 : 18;
+                // Controlled drop amount so aliens don't rapidly crush the bottom
+                const dropAmount = Math.min(20, 14 + Math.floor(s.wave / 3) * 2);
                 for (const e of aliveEnemies) {
                   e.y += dropAmount;
                 }
@@ -1544,6 +1771,7 @@ export function SpaceInvadersGame() {
             s.warningText = '⚠ ALERT: MOTHERSHIP INCOMING ⚠';
             s.warningTimer = 2200;
             soundManager.playWarningSiren();
+            triggerScreenShake(7, 450);
           }
 
           if (s.mysteryShip.active) {
@@ -1598,7 +1826,7 @@ export function SpaceInvadersGame() {
 
         // 8. Update Bullets (including Homing Micro-Missiles)
         for (const b of s.bullets) {
-          if (b.isHoming) {
+          if (b.isHoming && !b.isDud) {
             // Find closest living enemy or boss
             let closestTargetX = VIRTUAL_WIDTH / 2;
             let minDist = Infinity;
@@ -1617,6 +1845,49 @@ export function SpaceInvadersGame() {
             }
             const dx = closestTargetX - b.x;
             b.vx = (b.vx || 0) * 0.85 + Math.sign(dx) * 1.8;
+          }
+
+          // Mortar Shell detonation at apex / targetY
+          if (b.isMortar && b.targetY !== undefined && b.y <= b.targetY && b.speedY !== 0) {
+            b.speedY = 0;
+            const blastRadius = b.mortarRadius || 55;
+
+            soundManager.playMortarExplosion();
+            triggerScreenShake(10, 400);
+
+            s.bombExplosions.push({
+              id: ++s.bulletIdCounter,
+              x: b.x,
+              y: b.y,
+              radius: 6,
+              maxRadius: blastRadius,
+              alpha: 1,
+              color: '#f97316',
+              duration: 0,
+              maxDuration: 28,
+            });
+
+            // Damage all enemies in mortar blast radius
+            for (const e of s.enemies) {
+              if (e.health <= 0) continue;
+              const dist = Math.hypot(e.x + e.width / 2 - b.x, e.y + e.height / 2 - b.y);
+              if (dist <= blastRadius + 12) {
+                e.health -= b.damage || 4;
+                if (e.health <= 0) {
+                  s.p1.score += e.points;
+                  spawnEnemyDestructionSparks(e.x + e.width / 2, e.y + e.height / 2, e.color, 1.25, e.type);
+                }
+              }
+            }
+
+            // Damage boss if in radius
+            if (s.boss.active) {
+              const bossDist = Math.hypot(s.boss.x + s.boss.width / 2 - b.x, s.boss.y + s.boss.height / 2 - b.y);
+              if (bossDist <= blastRadius + s.boss.width / 2) {
+                s.boss.health -= b.damage || 4;
+                spawnExplosion(b.x, b.y, '#f97316', 14);
+              }
+            }
           }
 
           b.prevX = b.x;
@@ -1703,8 +1974,9 @@ export function SpaceInvadersGame() {
               const bw = 8;
               const bh = 7.33;
               if (checkBulletHit(b, block.x, block.y, bw, bh, 0.5)) {
+                const dmg = b.isPlayer ? (b.damage || 1) : Math.max(1, (b.damage || 1) + Math.floor(s.wave / 5));
                 if (!b.piercing) b.speedY = 0;
-                block.health -= b.damage || 1;
+                block.health -= dmg;
                 spawnExplosion(b.x, b.y, '#22c55e', 5);
 
                 // If mothership dumb bomb hits a bunker, detonate heavy blast
@@ -1766,6 +2038,20 @@ export function SpaceInvadersGame() {
             s.boss.health -= b.damage || 1;
             spawnExplosion(b.x, b.y, '#38bdf8', 6);
             soundManager.playAlienExplosion();
+
+            // Turret logic
+            const hitOffsetX = b.x - s.boss.x;
+            if (hitOffsetX < 24 && s.boss.leftTurretHealth > 0) {
+              s.boss.leftTurretHealth -= b.damage || 1;
+              if (s.boss.leftTurretHealth <= 0) {
+                spawnExplosion(s.boss.x + 12, s.boss.y + 16, '#f97316', 12);
+              }
+            } else if (hitOffsetX > s.boss.width - 24 && s.boss.rightTurretHealth > 0) {
+              s.boss.rightTurretHealth -= b.damage || 1;
+              if (s.boss.rightTurretHealth <= 0) {
+                spawnExplosion(s.boss.x + s.boss.width - 12, s.boss.y + 16, '#f97316', 12);
+              }
+            }
 
             if (s.boss.health <= 0) {
               s.boss.active = false;
@@ -1877,7 +2163,7 @@ export function SpaceInvadersGame() {
                 vy: -0.9,
               });
 
-              // 1 in 25 (4%) extra life, 1 in 5 (20%) extra shield, rest weapon
+              // 1 in 25 (4%) extra life, 1 in 5 (20%) extra shield, 1 in 4 (25%) mortar ammo, rest weapon upgrades
               const roll = Math.random();
               let pType: PowerUpType;
               let label = 'W';
@@ -1891,14 +2177,20 @@ export function SpaceInvadersGame() {
                 name = '+1 Life';
                 color = '#f43f5e';
                 glowColor = 'rgba(244, 63, 94, 0.95)';
-              } else if (roll < 0.24) {
+              } else if (roll < 0.20) {
                 pType = 'shield_charge';
                 label = '🛡️+1';
                 name = '+1 Shield';
                 color = '#a855f7';
                 glowColor = 'rgba(168, 85, 247, 0.95)';
+              } else if (roll < 0.45) {
+                pType = 'mortar_ammo';
+                label = '💣MTR';
+                name = '+3 Mortar Shells';
+                color = '#ea580c';
+                glowColor = 'rgba(234, 88, 12, 0.95)';
               } else {
-                const weaponTypes: WeaponArchetype[] = ['vulcan', 'plasma', 'missiles', 'laser'];
+                const weaponTypes: WeaponArchetype[] = ['vulcan', 'plasma', 'missiles', 'laser', 'scatter', 'wave'];
                 const chosenWeapon = weaponTypes[Math.floor(Math.random() * weaponTypes.length)];
 
                 if (chosenWeapon === 'vulcan') {
@@ -1919,6 +2211,18 @@ export function SpaceInvadersGame() {
                   name = 'Homing Missiles';
                   color = '#f59e0b';
                   glowColor = 'rgba(245, 158, 11, 0.9)';
+                } else if (chosenWeapon === 'scatter') {
+                  pType = 'weapon_scatter';
+                  label = '💥S';
+                  name = 'Scatter Flak';
+                  color = '#eab308';
+                  glowColor = 'rgba(234, 179, 8, 0.9)';
+                } else if (chosenWeapon === 'wave') {
+                  pType = 'weapon_wave';
+                  label = '〰W';
+                  name = 'Sonic Wave';
+                  color = '#10b981';
+                  glowColor = 'rgba(16, 185, 129, 0.9)';
                 } else {
                   pType = 'weapon_laser';
                   label = '⚡L';
@@ -1981,6 +2285,57 @@ export function SpaceInvadersGame() {
                 // Dedicated Enemy Destruction Particle System (colorful, fading sparks & streaks)
                 spawnEnemyDestructionSparks(e.x + e.width / 2, e.y + e.height / 2, e.color, 1.25, e.type);
                 soundManager.playAlienExplosion();
+
+                // Random drop from destroyed alien: 3.5% chance bonus capsule, 3% chance live falling bomb!
+                const alienDropRoll = Math.random();
+                if (alienDropRoll < 0.035) {
+                  // Drop random bonus capsule
+                  const bonusTypes: PowerUpType[] = ['weapon_vulcan', 'weapon_plasma', 'weapon_missiles', 'weapon_laser', 'weapon_scatter', 'weapon_wave', 'shield_charge', 'mortar_ammo'];
+                  const chosenType = bonusTypes[Math.floor(Math.random() * bonusTypes.length)];
+                  const meta: Record<PowerUpType, { label: string; name: string; color: string; glow: string }> = {
+                    weapon_vulcan: { label: '⚡V', name: 'Vulcan Rapid', color: '#38bdf8', glow: 'rgba(56, 189, 248, 0.9)' },
+                    weapon_plasma: { label: '⚡P', name: 'Plasma Piercer', color: '#f43f5e', glow: 'rgba(244, 63, 94, 0.9)' },
+                    weapon_missiles: { label: '🚀M', name: 'Homing Missiles', color: '#f59e0b', glow: 'rgba(245, 158, 11, 0.9)' },
+                    weapon_laser: { label: '⚡L', name: 'Rail Laser', color: '#c084fc', glow: 'rgba(192, 132, 252, 0.9)' },
+                    weapon_scatter: { label: '💥S', name: 'Scatter Flak', color: '#eab308', glow: 'rgba(234, 179, 8, 0.9)' },
+                    weapon_wave: { label: '〰W', name: 'Sonic Wave', color: '#10b981', glow: 'rgba(16, 185, 129, 0.9)' },
+                    mortar_ammo: { label: '💣MTR', name: '+3 Mortars', color: '#ea580c', glow: 'rgba(234, 88, 12, 0.95)' },
+                    shield_charge: { label: '🛡️+1', name: '+1 Shield', color: '#a855f7', glow: 'rgba(168, 85, 247, 0.95)' },
+                    extra_life: { label: '❤️1UP', name: '+1 Life', color: '#f43f5e', glow: 'rgba(244, 63, 94, 0.95)' },
+                    smart_bomb: { label: '💣', name: 'Smart Bomb', color: '#f97316', glow: 'rgba(249, 115, 22, 0.9)' },
+                    rapid_boost: { label: '⚡', name: 'Rapid Boost', color: '#eab308', glow: 'rgba(234, 179, 8, 0.9)' },
+                  };
+                  const m = meta[chosenType];
+                  s.powerUpIdCounter++;
+                  s.powerUps.push({
+                    id: s.powerUpIdCounter,
+                    x: e.x + e.width / 2,
+                    y: e.y + e.height,
+                    width: 28,
+                    height: 22,
+                    vy: 1.6,
+                    type: chosenType,
+                    label: m.label,
+                    name: m.name,
+                    color: m.color,
+                    glowColor: m.glow,
+                  });
+                } else if (alienDropRoll < 0.065) {
+                  // Danger! Alien drops a revenge live bomb!
+                  s.bulletIdCounter++;
+                  s.bullets.push({
+                    id: s.bulletIdCounter,
+                    x: e.x + e.width / 2,
+                    y: e.y + e.height,
+                    width: 6,
+                    height: 12,
+                    speedY: 4.8,
+                    color: '#f43f5e',
+                    isPlayer: false,
+                    damage: 1,
+                    isAlienBomb: true,
+                  });
+                }
               }
               break;
             }
@@ -2043,24 +2398,38 @@ export function SpaceInvadersGame() {
                   alpha: 1,
                   vy: -0.9,
                 });
+              } else if (pu.type === 'mortar_ammo') {
+                p.mortarAmmo = Math.min(12, p.mortarAmmo + 3);
+                s.floatingIdCounter++;
+                s.floatingTexts.push({
+                  id: s.floatingIdCounter,
+                  x: p.x - 14,
+                  y: p.y - 18,
+                  text: `${p.label} +3 MORTARS (TOTAL: ${p.mortarAmmo})!`,
+                  color: '#ea580c',
+                  alpha: 1,
+                  vy: -0.9,
+                });
               } else {
                 let newType: WeaponArchetype = 'vulcan';
                 if (pu.type === 'weapon_plasma') newType = 'plasma';
                 else if (pu.type === 'weapon_missiles') newType = 'missiles';
                 else if (pu.type === 'weapon_laser') newType = 'laser';
+                else if (pu.type === 'weapon_scatter') newType = 'scatter';
+                else if (pu.type === 'weapon_wave') newType = 'wave';
 
                 const oldTier = p.weaponTier;
                 p.weaponType = newType;
                 p.weaponTier = Math.min(5, (p.weaponTier + 1) as WeaponTier) as WeaponTier;
-                // 15 seconds duration (slow power reduction over 10 to 22s ratio)
-                p.weaponTimeRemaining = 15000;
+                // 30 to 60 random shots per tier
+                p.weaponAmmo = p.weaponTier > 1 ? 30 + Math.floor(Math.random() * 31) : 0;
 
                 s.floatingIdCounter++;
                 s.floatingTexts.push({
                   id: s.floatingIdCounter,
                   x: p.x - 14,
                   y: p.y - 18,
-                  text: `${p.label} ${pu.name} LVL ${p.weaponTier} (15s)!`,
+                  text: `${p.label} ${pu.name} LVL ${p.weaponTier} (${p.weaponTier > 1 ? p.weaponAmmo + ' SHOTS' : 'MAX'})!`,
                   color: pu.color,
                   alpha: 1,
                   vy: -0.9,
@@ -2210,7 +2579,8 @@ export function SpaceInvadersGame() {
             lives: s.p1.lives,
             weaponTier: s.p1.weaponTier,
             weaponType: s.p1.weaponType,
-            weaponTime: Math.ceil(s.p1.weaponTimeRemaining / 1000),
+            weaponAmmo: s.p1.weaponAmmo,
+            mortarAmmo: s.p1.mortarAmmo,
             shields: s.p1.shieldsRemaining,
             shieldActive: s.p1.shieldActiveUntil > currNow,
             alive: s.p1.alive && s.p1.lives > 0,
@@ -2222,7 +2592,8 @@ export function SpaceInvadersGame() {
               lives: s.p2.lives,
               weaponTier: s.p2.weaponTier,
               weaponType: s.p2.weaponType,
-              weaponTime: Math.ceil(s.p2.weaponTimeRemaining / 1000),
+              weaponAmmo: s.p2.weaponAmmo,
+              mortarAmmo: s.p2.mortarAmmo,
               shields: s.p2.shieldsRemaining,
               shieldActive: s.p2.shieldActiveUntil > currNow,
               alive: s.p2.alive && s.p2.lives > 0,
@@ -2334,6 +2705,15 @@ export function SpaceInvadersGame() {
         } else if (e.type === 'crab') {
           sprite = CRAB_SPRITE[s.fleet.animFrame];
           pixelSize = 3.2;
+        } else if (e.type === 'armored') {
+          sprite = ARMORED_SPRITE[s.fleet.animFrame];
+          pixelSize = 3.2;
+        } else if (e.type === 'hunter') {
+          sprite = HUNTER_SPRITE[s.fleet.animFrame];
+          pixelSize = 3.0;
+        } else if (e.type === 'glider') {
+          sprite = GLIDER_SPRITE[s.fleet.animFrame];
+          pixelSize = 3.4;
         }
 
         drawPixelPattern(ctx, sprite, e.x, e.y, pixelSize, e.color);
@@ -2406,6 +2786,18 @@ export function SpaceInvadersGame() {
           ctx.beginPath();
           ctx.arc(b.x, b.y + b.height / 2, b.width / 4, 0, Math.PI * 2);
           ctx.fill();
+          ctx.restore();
+        } else if (b.isMortar) {
+          ctx.save();
+          ctx.fillStyle = '#ea580c';
+          ctx.shadowColor = '#f97316';
+          ctx.shadowBlur = 8;
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, 6, 0, Math.PI * 2);
+          ctx.fill();
+          // Trailing spark
+          ctx.fillStyle = '#fef08a';
+          ctx.fillRect(b.x - 2, b.y + 6, 4, 6);
           ctx.restore();
         } else if (b.isHoming) {
           drawMissile(ctx, b.x, b.y, b.vx ? b.vx * 0.15 : 0, b.color);
@@ -2521,9 +2913,10 @@ export function SpaceInvadersGame() {
 
         ctx.textAlign = 'left';
         ctx.fillStyle = s.p1.color;
-        const p1TimerStr = s.p1.weaponTier > 1 ? ` (${Math.ceil(s.p1.weaponTimeRemaining / 1000)}s)` : '';
+        const p1TimerStr = s.p1.weaponTier > 1 ? ` (${s.p1.weaponAmmo})` : '';
+        const autoStr = s.autoPlay ? ' [🤖 AUTO]' : '';
         ctx.fillText(
-          `1P: LVL ${s.p1.weaponTier} ${s.p1.weaponType.toUpperCase()}${p1TimerStr} | 🛡️:${s.p1.shieldsRemaining}`,
+          `1P: LVL ${s.p1.weaponTier} ${s.p1.weaponType.toUpperCase()}${p1TimerStr} | 🛡️:${s.p1.shieldsRemaining} | 💣:${s.p1.mortarAmmo}${autoStr}`,
           24,
           592
         );
@@ -2531,9 +2924,9 @@ export function SpaceInvadersGame() {
         if (s.gameMode === '2p') {
           ctx.textAlign = 'right';
           ctx.fillStyle = s.p2.color;
-          const p2TimerStr = s.p2.weaponTier > 1 ? ` (${Math.ceil(s.p2.weaponTimeRemaining / 1000)}s)` : '';
+          const p2TimerStr = s.p2.weaponTier > 1 ? ` (${s.p2.weaponAmmo})` : '';
           ctx.fillText(
-            `2P: LVL ${s.p2.weaponTier} ${s.p2.weaponType.toUpperCase()}${p2TimerStr} | 🛡️:${s.p2.shieldsRemaining}`,
+            `2P: LVL ${s.p2.weaponTier} ${s.p2.weaponType.toUpperCase()}${p2TimerStr} | 🛡️:${s.p2.shieldsRemaining} | 💣:${s.p2.mortarAmmo}`,
             VIRTUAL_WIDTH - 24,
             592
           );
@@ -2769,6 +3162,68 @@ export function SpaceInvadersGame() {
     }
   };
 
+  const handleTouchP2LeftStart = (e: React.TouchEvent | React.MouseEvent) => {
+    e.preventDefault();
+    stateRef.current.keys.p2Left = true;
+  };
+  const handleTouchP2LeftEnd = (e: React.TouchEvent | React.MouseEvent) => {
+    e.preventDefault();
+    stateRef.current.keys.p2Left = false;
+  };
+  const handleTouchP2RightStart = (e: React.TouchEvent | React.MouseEvent) => {
+    e.preventDefault();
+    stateRef.current.keys.p2Right = true;
+  };
+  const handleTouchP2RightEnd = (e: React.TouchEvent | React.MouseEvent) => {
+    e.preventDefault();
+    stateRef.current.keys.p2Right = false;
+  };
+  const handleTouchP2Shoot = (e: React.TouchEvent | React.MouseEvent) => {
+    e.preventDefault();
+    stateRef.current.keys.p2Shoot = true;
+    setTimeout(() => {
+      stateRef.current.keys.p2Shoot = false;
+    }, 120);
+  };
+
+  const handleTouchMortarStart = (e: React.TouchEvent | React.MouseEvent) => {
+    e.preventDefault();
+    const s = stateRef.current;
+    if (s.gameState === 'playing' && s.p1.alive && s.p1.mortarAmmo > 0 && !s.keys.p1Mortar) {
+      s.keys.p1Mortar = true;
+      s.p1.mortarChargeStart = Date.now();
+    }
+  };
+  const handleTouchMortarEnd = (e: React.TouchEvent | React.MouseEvent) => {
+    e.preventDefault();
+    const s = stateRef.current;
+    if (s.keys.p1Mortar && s.p1.mortarAmmo > 0) {
+      s.keys.p1Mortar = false;
+      const holdTime = Math.min(2500, Math.max(150, Date.now() - (s.p1.mortarChargeStart || Date.now())));
+      s.p1.mortarAmmo -= 1;
+      const chargeRatio = (holdTime - 150) / 2350;
+      const targetY = 420 - chargeRatio * 340;
+
+      soundManager.playMortarLaunch();
+      s.bulletIdCounter++;
+      s.bullets.push({
+        id: s.bulletIdCounter,
+        x: s.p1.x + s.p1.width / 2,
+        y: s.p1.y - 6,
+        width: 8,
+        height: 10,
+        speedY: -6.5,
+        color: '#f97316',
+        isPlayer: true,
+        playerId: 1,
+        isMortar: true,
+        targetY,
+        mortarRadius: 55 + chargeRatio * 20,
+        damage: 4 + Math.round(chargeRatio * 2),
+      });
+    }
+  };
+
   return (
     <div className="w-full flex flex-col items-center select-none">
       {/* Arcade Marquee / Header */}
@@ -2890,6 +3345,23 @@ export function SpaceInvadersGame() {
               title="Toggle CRT Scanline Overlay"
             >
               CRT
+            </button>
+            <button
+              id="autoplay-toggle-btn"
+              onClick={() => {
+                const next = !autoPlay;
+                setAutoPlay(next);
+                stateRef.current.autoPlay = next;
+              }}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-xs font-mono font-bold transition-all cursor-pointer ${
+                autoPlay
+                  ? 'border-purple-400 bg-purple-600 text-white shadow-md animate-pulse'
+                  : 'border-neutral-700 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800'
+              }`}
+              title="Toggle Auto-Play Bot (Watch the AI play!)"
+            >
+              <Bot className="w-3.5 h-3.5" />
+              <span>{autoPlay ? 'AUTO: ON' : 'AUTO'}</span>
             </button>
           </div>
         </div>
@@ -3069,6 +3541,20 @@ export function SpaceInvadersGame() {
             FIRE 💥
           </button>
           <button
+            id="mobile-btn-mortar"
+            onMouseDown={handleTouchMortarStart}
+            onMouseUp={handleTouchMortarEnd}
+            onMouseLeave={handleTouchMortarEnd}
+            onTouchStart={handleTouchMortarStart}
+            onTouchEnd={handleTouchMortarEnd}
+            disabled={p1State.mortarAmmo <= 0}
+            className="h-11 px-3.5 bg-amber-700 hover:bg-amber-600 active:bg-amber-800 disabled:opacity-40 text-white font-mono font-bold text-xs tracking-wide rounded-lg flex items-center justify-center border border-amber-400 shadow-md cursor-pointer transition-colors select-none"
+            aria-label="Hold to charge mortar"
+            title="Hold to charge height, release to launch mortar"
+          >
+            💣 MTR ({p1State.mortarAmmo})
+          </button>
+          <button
             id="mobile-btn-shield"
             onClick={() => deployShield(1)}
             disabled={p1State.shields <= 0 || p1State.shieldActive}
@@ -3077,6 +3563,43 @@ export function SpaceInvadersGame() {
           >
             🛡️ SHIELD
           </button>
+
+          {/* 2P Mobile Controls if 2P Mode active */}
+          {gameMode === '2p' && (
+            <div className="flex items-center gap-1.5 pl-2 border-l border-neutral-700">
+              <span className="text-cyan-400 font-bold text-xs font-mono">2P:</span>
+              <button
+                id="mobile-2p-btn-left"
+                onMouseDown={handleTouchP2LeftStart}
+                onMouseUp={handleTouchP2LeftEnd}
+                onMouseLeave={handleTouchP2LeftEnd}
+                onTouchStart={handleTouchP2LeftStart}
+                onTouchEnd={handleTouchP2LeftEnd}
+                className="w-10 h-11 bg-neutral-800 hover:bg-neutral-700 active:bg-cyan-600 text-neutral-200 border border-neutral-600 rounded-lg flex items-center justify-center font-bold text-base cursor-pointer select-none"
+              >
+                ◀
+              </button>
+              <button
+                id="mobile-2p-btn-right"
+                onMouseDown={handleTouchP2RightStart}
+                onMouseUp={handleTouchP2RightEnd}
+                onMouseLeave={handleTouchP2RightEnd}
+                onTouchStart={handleTouchP2RightStart}
+                onTouchEnd={handleTouchP2RightEnd}
+                className="w-10 h-11 bg-neutral-800 hover:bg-neutral-700 active:bg-cyan-600 text-neutral-200 border border-neutral-600 rounded-lg flex items-center justify-center font-bold text-base cursor-pointer select-none"
+              >
+                ▶
+              </button>
+              <button
+                id="mobile-2p-btn-fire"
+                onMouseDown={handleTouchP2Shoot}
+                onTouchStart={handleTouchP2Shoot}
+                className="h-11 px-4 bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 text-white font-mono font-bold text-xs rounded-lg flex items-center justify-center border border-cyan-400 shadow-md cursor-pointer select-none"
+              >
+                2P FIRE
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Action button triggers */}

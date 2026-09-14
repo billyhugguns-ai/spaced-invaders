@@ -583,22 +583,104 @@ class SoundManager {
 
     try {
       const now = ctx.currentTime;
+      // Dual-oscillator punchy, piercing mothership klaxon
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      const gain2 = ctx.createGain();
+
+      osc1.type = 'sawtooth';
+      osc2.type = 'square';
+
+      // Sweeping alarm siren from 400Hz to 1100Hz and back
+      osc1.frequency.setValueAtTime(450, now);
+      osc1.frequency.linearRampToValueAtTime(1050, now + 0.22);
+      osc1.frequency.linearRampToValueAtTime(450, now + 0.44);
+
+      osc2.frequency.setValueAtTime(455, now);
+      osc2.frequency.linearRampToValueAtTime(1060, now + 0.22);
+      osc2.frequency.linearRampToValueAtTime(455, now + 0.44);
+
+      // Boosted volume from 0.12 to 0.35
+      gain1.gain.setValueAtTime(0.35, now);
+      gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+
+      gain2.gain.setValueAtTime(0.25, now);
+      gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+
+      osc1.start(now);
+      osc1.stop(now + 0.52);
+      osc2.start(now);
+      osc2.stop(now + 0.52);
+    } catch {
+      // Ignore
+    }
+  }
+
+  public playMortarLaunch(): void {
+    if (this.muted) return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    try {
+      const now = ctx.currentTime;
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(500, now);
-      osc.frequency.linearRampToValueAtTime(900, now + 0.15);
-      osc.frequency.linearRampToValueAtTime(500, now + 0.3);
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(140, now);
+      osc.frequency.exponentialRampToValueAtTime(480, now + 0.25);
 
-      gain.gain.setValueAtTime(0.12, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+      gain.gain.setValueAtTime(0.28, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
 
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.start(now);
-      osc.stop(now + 0.32);
+      osc.stop(now + 0.28);
     } catch {
-      // Ignore
+      // Audio errors safely ignored
+    }
+  }
+
+  public playMortarExplosion(): void {
+    if (this.muted) return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    try {
+      const bufferSize = ctx.sampleRate * 0.65;
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const output = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        output[i] = (Math.random() * 2 - 1) * Math.exp(-2.2 * (i / bufferSize));
+      }
+
+      const noise = ctx.createBufferSource();
+      noise.buffer = buffer;
+
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(320, ctx.currentTime);
+      filter.frequency.linearRampToValueAtTime(50, ctx.currentTime + 0.65);
+
+      const gain = ctx.createGain();
+      const now = ctx.currentTime;
+      gain.gain.setValueAtTime(0.45, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+
+      noise.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+
+      noise.start(now);
+      noise.stop(now + 0.65);
+    } catch {
+      // Audio errors safely ignored
     }
   }
 
