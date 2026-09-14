@@ -3504,9 +3504,9 @@ export function SpaceInvadersGame() {
       </div>
 
       {/* Touch and Mobile Gameplay Controls */}
-      <div className="w-full max-w-4xl bg-neutral-900 border-x border-b border-neutral-700 rounded-b-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+      <div className="w-full max-w-4xl bg-neutral-900 border-x border-b border-neutral-700 rounded-b-xl px-2.5 sm:px-4 py-3 flex flex-wrap items-center justify-between gap-2.5 select-none touch-manipulation">
         {/* On-screen touch directional buttons */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
           <button
             id="mobile-btn-left"
             onMouseDown={handleTouchP1LeftStart}

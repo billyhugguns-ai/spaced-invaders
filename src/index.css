@@ -1,1 +1,17 @@
 @import "tailwindcss";
+
+/* Mobile Touch & Viewport Optimizations */
+html, body {
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+canvas {
+  touch-action: none;
+}
+
+button {
+  touch-action: manipulation;
+}
