@@ -42,7 +42,7 @@ import {
   addHallOfFameScore,
 } from '../utils/highScores';
 import { HallOfFameModal } from './HallOfFameModal';
-import { Trophy, Bot, Crosshair } from 'lucide-react';
+import { Trophy, Bot, Crosshair, Maximize2, Minimize2, Lock, KeyRound } from 'lucide-react';
 
 const VIRTUAL_WIDTH = 800;
 const VIRTUAL_HEIGHT = 600;
@@ -53,6 +53,42 @@ const SHIP_HEIGHT = 14;
 
 export function SpaceInvadersGame() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Sync fullscreen state changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
+  const toggleFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        const target = containerRef.current || document.documentElement;
+        if (target.requestFullscreen) {
+          await target.requestFullscreen();
+        } else if ((target as any).webkitRequestFullscreen) {
+          await (target as any).webkitRequestFullscreen();
+        }
+      } else {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if ((document as any).webkitExitFullscreen) {
+          await (document as any).webkitExitFullscreen();
+        }
+      }
+    } catch (err) {
+      console.warn('Fullscreen toggle failed:', err);
+    }
+  };
 
   // Hall of Fame and High Score state
   const [hallOfFame, setHallOfFame] = useState<HighScoreEntry[]>(loadHallOfFame);
@@ -127,6 +163,43 @@ export function SpaceInvadersGame() {
 
   const [autoPlay, setAutoPlay] = useState(false);
   const [autoPlayDebug, setAutoPlayDebug] = useState(true);
+  const [showAutoPlayPasswordModal, setShowAutoPlayPasswordModal] = useState(false);
+  const [autoPlayPasswordInput, setAutoPlayPasswordInput] = useState('');
+  const [autoPlayPasswordError, setAutoPlayPasswordError] = useState(false);
+  const [isAutoPlayUnlocked, setIsAutoPlayUnlocked] = useState(false);
+
+  // Handle password unlock for Auto-Play Bot (Password: wolf)
+  const handleAutoPlayClick = () => {
+    if (autoPlay) {
+      // If already running, allow turning off directly
+      setAutoPlay(false);
+      stateRef.current.autoPlay = false;
+      return;
+    }
+
+    if (isAutoPlayUnlocked) {
+      // Already verified password during this session
+      setAutoPlay(true);
+      stateRef.current.autoPlay = true;
+    } else {
+      // Prompt for password
+      setAutoPlayPasswordInput('');
+      setAutoPlayPasswordError(false);
+      setShowAutoPlayPasswordModal(true);
+    }
+  };
+
+  const handleVerifyPassword = () => {
+    if (autoPlayPasswordInput.trim().toLowerCase() === 'wolf') {
+      setIsAutoPlayUnlocked(true);
+      setShowAutoPlayPasswordModal(false);
+      setAutoPlay(true);
+      stateRef.current.autoPlay = true;
+      setAutoPlayPasswordError(false);
+    } else {
+      setAutoPlayPasswordError(true);
+    }
+  };
 
   // Mutable reference for 60FPS animation loop
   const stateRef = useRef({
@@ -260,6 +333,15 @@ export function SpaceInvadersGame() {
     warningTimer: 0,
     autoPlay: false,
     autoPlayDebug: true,
+    botState: {
+      strafeDir: 1 as 1 | -1,
+      strafeTimer: 0,
+      strafeDuration: 800,
+      targetLead: 0,
+      lastDodgeTime: 0,
+      flankMode: false,
+      burstTimer: 0,
+    },
   });
 
   // Sync settings with ref
@@ -1119,46 +1201,107 @@ export function SpaceInvadersGame() {
 
         // AUTO-PLAY BOT LOGIC (if enabled)
         if (s.autoPlay && s.p1.alive && s.p1.lives > 0) {
-          // 1. Identify incoming threats (enemy bullets heading down near p1.x)
           const p1CenterX = s.p1.x + s.p1.width / 2;
+          const bot = s.botState;
+          bot.strafeTimer += dt;
+          bot.burstTimer += dt;
+
+          // 1. Identify incoming threats (enemy bullets heading down towards p1.x)
           const threatBullets = s.bullets.filter(
-            (b) => !b.isPlayer && b.speedY > 0 && b.y > 220 && Math.abs(b.x - p1CenterX) < 55
+            (b) => !b.isPlayer && b.speedY > 0 && b.y > 180 && Math.abs(b.x - p1CenterX) < 65
           );
 
-          if (threatBullets.length > 0) {
-            // Dodge away from closest bullet
-            const closestThreat = threatBullets.reduce((min, b) => (b.y > min.y ? b : min), threatBullets[0]);
-            if (closestThreat.x < p1CenterX && s.p1.x < VIRTUAL_WIDTH - s.p1.width - 24) {
-              s.keys.p1Right = true;
-              s.keys.p1Left = false;
-            } else if (closestThreat.x >= p1CenterX && s.p1.x > 24) {
-              s.keys.p1Left = true;
-              s.keys.p1Right = false;
-            }
+          // 2. Check bunker protection overhead:
+          // Is the bot currently standing under an alive bunker block?
+          // If so, shooting vulcan/plasma will destroy our own cover unless we shoot through a gap!
+          let directlyUnderActiveBunker = false;
+          let bunkerLeftBound = 0;
+          let bunkerRightBound = 0;
 
-            // Emergency auto-shield if bullet is critical close (< 35px) and unshielded
-            if (closestThreat.y > s.p1.y - 35 && s.p1.shieldsRemaining > 0 && s.p1.shieldActiveUntil < Date.now()) {
-              deployShield(1);
+          for (const bunker of s.bunkers) {
+            const aliveInBunker = bunker.blocks.filter((blk) => blk.health > 0);
+            if (aliveInBunker.length > 0) {
+              const minBx = Math.min(...aliveInBunker.map((b) => b.x));
+              const maxBx = Math.max(...aliveInBunker.map((b) => b.x + 8));
+              // Player width is 24; check if center is underneath
+              if (p1CenterX >= minBx - 6 && p1CenterX <= maxBx + 6) {
+                directlyUnderActiveBunker = true;
+                bunkerLeftBound = minBx;
+                bunkerRightBound = maxBx;
+                break;
+              }
+            }
+          }
+
+          // 3. Movement & Tactical AI Decision Matrix
+          if (threatBullets.length > 0) {
+            // HIGH PRIORITY: Threat evasion / juking
+            const closestThreat = threatBullets.reduce((min, b) => (b.y > min.y ? b : min), threatBullets[0]);
+            
+            // Check if standing under bunker gives protection from this bullet
+            const bulletUnderBunker = directlyUnderActiveBunker && closestThreat.y < 460;
+
+            if (!bulletUnderBunker) {
+              // Dodge direction away from bullet trajectory
+              if (closestThreat.x < p1CenterX && s.p1.x < VIRTUAL_WIDTH - s.p1.width - 24) {
+                s.keys.p1Right = true;
+                s.keys.p1Left = false;
+              } else if (closestThreat.x >= p1CenterX && s.p1.x > 24) {
+                s.keys.p1Left = true;
+                s.keys.p1Right = false;
+              }
+
+              // Emergency auto-shield if bullet is critically close (< 35px) and unshielded
+              if (closestThreat.y > s.p1.y - 38 && s.p1.shieldsRemaining > 0 && s.p1.shieldActiveUntil < Date.now()) {
+                deployShield(1);
+              }
             }
           } else {
-            // 2. Track & Target: Align with lowest alive enemy or boss
-            let targetX = VIRTUAL_WIDTH / 2;
-            if (s.boss.active) {
-              targetX = s.boss.x + s.boss.width / 2;
+            // TACTICAL COMBAT MANEUVERS (autonomous strafing, flanking, and leading shots)
+            if (bot.strafeTimer >= bot.strafeDuration) {
+              bot.strafeTimer = 0;
+              bot.strafeDuration = 450 + Math.random() * 650;
+              // 30% chance to toggle flank mode (sweep far left or far right to hit outer edges)
+              bot.flankMode = Math.random() < 0.28;
+              bot.strafeDir = (bot.strafeDir === 1 ? -1 : 1) as 1 | -1;
+            }
+
+            let desiredX = p1CenterX;
+
+            if (bot.flankMode) {
+              // Flanking maneuver: sweep to screen borders to snipe edge columns and UFOs
+              desiredX = bot.strafeDir === 1 ? VIRTUAL_WIDTH - 60 : 60;
+            } else if (s.boss.active) {
+              // Dynamic boss tracking with rhythmic strafe-weaving to avoid boss center cannon
+              const bossCenter = s.boss.x + s.boss.width / 2;
+              const strafeOffset = bot.strafeDir * (28 + Math.sin(time * 0.005) * 45);
+              desiredX = bossCenter + strafeOffset;
             } else {
+              // Fleet combat: prioritize dangerous lower invaders and snipe open columns
               const livingEnemies = s.enemies.filter((e) => e.health > 0);
               if (livingEnemies.length > 0) {
-                // Find enemy with lowest Y that is closest to current player
-                const lowest = livingEnemies.reduce((acc, e) => (e.y > acc.y ? e : acc), livingEnemies[0]);
-                targetX = lowest.x + lowest.width / 2;
+                // If standing under own bunker, actively step OUT of bunker shadow to shoot!
+                if (directlyUnderActiveBunker) {
+                  // Step either to left or right clear gap of the bunker
+                  const distToLeft = Math.abs(p1CenterX - (bunkerLeftBound - 16));
+                  const distToRight = Math.abs(p1CenterX - (bunkerRightBound + 16));
+                  desiredX = distToLeft < distToRight ? bunkerLeftBound - 18 : bunkerRightBound + 18;
+                } else {
+                  // Lead target by alien fleet movement direction
+                  const lowest = livingEnemies.reduce((acc, e) => (e.y > acc.y ? e : acc), livingEnemies[0]);
+                  const leadPredict = s.fleet.direction * 18;
+                  const microWeave = Math.sin(time * 0.008) * 14;
+                  desiredX = lowest.x + lowest.width / 2 + leadPredict + microWeave;
+                }
               }
             }
 
-            if (Math.abs(p1CenterX - targetX) > 8) {
-              if (p1CenterX < targetX && s.p1.x < VIRTUAL_WIDTH - s.p1.width - 24) {
+            // Apply movement keys with smooth thresholding
+            if (Math.abs(p1CenterX - desiredX) > 7) {
+              if (p1CenterX < desiredX && s.p1.x < VIRTUAL_WIDTH - s.p1.width - 24) {
                 s.keys.p1Right = true;
                 s.keys.p1Left = false;
-              } else if (p1CenterX > targetX && s.p1.x > 24) {
+              } else if (p1CenterX > desiredX && s.p1.x > 24) {
                 s.keys.p1Left = true;
                 s.keys.p1Right = false;
               }
@@ -1168,11 +1311,20 @@ export function SpaceInvadersGame() {
             }
           }
 
-          // Auto-shoot continuously
-          s.keys.p1Shoot = true;
+          // 4. SMART TRIGGER SYSTEM (Protect own defenses from self-inflicted damage!)
+          // If the ship is directly under an active bunker block, HOLD FIRE unless using piercing weapon
+          // or wave weapon that doesn't harm it!
+          if (directlyUnderActiveBunker) {
+            // DO NOT SHOOT our own defense bunker!
+            s.keys.p1Shoot = false;
+          } else {
+            // Clear line of sight: rhythmic firing
+            s.keys.p1Shoot = true;
+          }
 
-          // Auto-launch mortar if ammo available and group of enemies or boss present
-          if (s.p1.mortarAmmo > 0 && Math.random() < 0.015) {
+          // 5. Tactical Mortar Deployment:
+          // Launch mortar when enemies are dense or boss is active, but only if clear of roof
+          if (s.p1.mortarAmmo > 0 && !directlyUnderActiveBunker && Math.random() < 0.018) {
             s.p1.mortarAmmo -= 1;
             soundManager.playMortarLaunch();
             s.bulletIdCounter++;
@@ -1187,9 +1339,9 @@ export function SpaceInvadersGame() {
               isPlayer: true,
               playerId: 1,
               isMortar: true,
-              targetY: 100 + Math.random() * 150,
-              mortarRadius: 55,
-              damage: 4,
+              targetY: s.boss.active ? s.boss.y + s.boss.height + 15 : 120 + Math.random() * 140,
+              mortarRadius: 60,
+              damage: 5,
             });
           }
         }
@@ -3225,7 +3377,12 @@ export function SpaceInvadersGame() {
   };
 
   return (
-    <div className="w-full flex flex-col items-center select-none">
+    <div
+      ref={containerRef}
+      className={`w-full flex flex-col items-center select-none ${
+        isFullscreen ? 'bg-neutral-950 p-2 sm:p-4 justify-center min-h-screen overflow-y-auto' : ''
+      }`}
+    >
       {/* Arcade Marquee / Header */}
       <div className="w-full max-w-4xl bg-neutral-900 border-x border-t border-neutral-700 rounded-t-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3 shadow-lg">
         {/* Scores & Mode */}
@@ -3320,7 +3477,7 @@ export function SpaceInvadersGame() {
             ))}
           </div>
 
-          {/* Audio & Scanline toggles */}
+          {/* Audio, Scanline, Fullscreen & Auto-Play toggles */}
           <div className="flex items-center gap-1 border-l border-neutral-700 pl-2">
             <button
               id="sound-toggle-btn"
@@ -3347,20 +3504,38 @@ export function SpaceInvadersGame() {
               CRT
             </button>
             <button
+              id="fullscreen-toggle-btn"
+              onClick={toggleFullscreen}
+              className={`p-1.5 rounded-lg border text-xs transition-colors cursor-pointer ${
+                isFullscreen
+                  ? 'border-sky-400 bg-sky-600 text-white shadow-md'
+                  : 'border-neutral-700 text-neutral-300 hover:bg-neutral-800'
+              }`}
+              title={isFullscreen ? 'Exit Full Screen' : 'Enter Full Screen'}
+            >
+              {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+            </button>
+            <button
               id="autoplay-toggle-btn"
-              onClick={() => {
-                const next = !autoPlay;
-                setAutoPlay(next);
-                stateRef.current.autoPlay = next;
-              }}
+              onClick={handleAutoPlayClick}
               className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-xs font-mono font-bold transition-all cursor-pointer ${
                 autoPlay
                   ? 'border-purple-400 bg-purple-600 text-white shadow-md animate-pulse'
                   : 'border-neutral-700 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800'
               }`}
-              title="Toggle Auto-Play Bot (Watch the AI play!)"
+              title={
+                autoPlay
+                  ? 'Click to turn off Auto-Play Bot'
+                  : isAutoPlayUnlocked
+                  ? 'Start Auto-Play Bot'
+                  : 'Password Protected (Pass: wolf)'
+              }
             >
-              <Bot className="w-3.5 h-3.5" />
+              {isAutoPlayUnlocked ? (
+                <Bot className="w-3.5 h-3.5" />
+              ) : (
+                <Lock className="w-3.5 h-3.5 text-amber-400" />
+              )}
               <span>{autoPlay ? 'AUTO: ON' : 'AUTO'}</span>
             </button>
           </div>
@@ -3651,6 +3826,72 @@ export function SpaceInvadersGame() {
         onClose={() => setShowHallOfFameModal(false)}
         scores={hallOfFame}
       />
+
+      {/* Auto-Play Bot Password Protection Modal */}
+      {showAutoPlayPasswordModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-neutral-900 border border-purple-500/50 rounded-xl max-w-sm w-full p-6 shadow-2xl font-mono text-center">
+            <div className="w-12 h-12 rounded-full bg-purple-500/20 border border-purple-500/40 flex items-center justify-center mx-auto mb-3 text-purple-400">
+              <Lock className="w-6 h-6" />
+            </div>
+
+            <h3 className="text-base font-bold text-purple-300 tracking-wider mb-1">
+              AUTHENTICATION REQUIRED
+            </h3>
+            <p className="text-xs text-neutral-400 mb-4">
+              Enter security clearance key to engage AI Tactical Pilot.
+            </p>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleVerifyPassword();
+              }}
+              className="flex flex-col gap-3"
+            >
+              <input
+                id="bot-password-input"
+                type="password"
+                placeholder="Enter password..."
+                value={autoPlayPasswordInput}
+                onChange={(e) => {
+                  setAutoPlayPasswordInput(e.target.value);
+                  setAutoPlayPasswordError(false);
+                }}
+                className={`w-full px-3 py-2 bg-neutral-950 border rounded-lg text-white font-mono text-center tracking-widest text-sm focus:outline-hidden ${
+                  autoPlayPasswordError
+                    ? 'border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.4)]'
+                    : 'border-neutral-700 focus:border-purple-400'
+                }`}
+                autoFocus
+              />
+
+              {autoPlayPasswordError && (
+                <p className="text-xs text-red-400 font-semibold animate-shake">
+                  ❌ ACCESS DENIED: Invalid Password
+                </p>
+              )}
+
+              <div className="flex items-center gap-2 mt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAutoPlayPasswordModal(false)}
+                  className="flex-1 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg text-xs font-bold cursor-pointer transition-colors"
+                >
+                  CANCEL
+                </button>
+                <button
+                  id="submit-bot-password-btn"
+                  type="submit"
+                  className="flex-1 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors shadow-md"
+                >
+                  UNLOCK BOT
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
