@@ -10,10 +10,26 @@ export const DEFAULT_HALL_OF_FAME: HighScoreEntry[] = [
   { id: '5', name: 'MAX', score: 5600, wave: 5, mode: '1p', difficulty: 'medium', date: '2026-09-08' },
 ];
 
+// Helper to get cookie by name
+function getCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+  if (match) return decodeURIComponent(match[2]);
+  return null;
+}
+
+// Helper to set cookie (expires in 365 days)
+function setCookie(name: string, value: string): void {
+  if (typeof document === 'undefined') return;
+  const d = new Date();
+  d.setTime(d.getTime() + 365 * 24 * 60 * 60 * 1000);
+  document.cookie = `${name}=${encodeURIComponent(value)};expires=${d.toUTCString()};path=/`;
+}
+
 export function loadHallOfFame(): HighScoreEntry[] {
-  if (typeof window === 'undefined') return DEFAULT_HALL_OF_FAME;
+  if (typeof document === 'undefined') return DEFAULT_HALL_OF_FAME;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = getCookie(STORAGE_KEY);
     if (!raw) {
       saveHallOfFame(DEFAULT_HALL_OF_FAME);
       return DEFAULT_HALL_OF_FAME;
@@ -35,10 +51,10 @@ export function loadHallOfFame(): HighScoreEntry[] {
 }
 
 export function saveHallOfFame(scores: HighScoreEntry[]): void {
-  if (typeof window === 'undefined') return;
+  if (typeof document === 'undefined') return;
   try {
     const sorted = [...scores].sort((a, b) => b.score - a.score).slice(0, 5);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(sorted));
+    setCookie(STORAGE_KEY, JSON.stringify(sorted));
   } catch {
     // Ignore storage errors
   }
