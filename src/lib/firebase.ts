@@ -2,13 +2,13 @@ import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyC9UkxikIdKW-MjPCV15fIyqjowROlHnqU",
-  authDomain: "spaced-invaders.firebaseapp.com",
-  projectId: "spaced-invaders",
-  storageBucket: "spaced-invaders.firebasestorage.app",
-  messagingSenderId: "1030601863744",
-  appId: "1:1030601863744:web:06ab76bccbbafb6a6f25a5",
-  measurementId: "G-QT9VSETW5H"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase
