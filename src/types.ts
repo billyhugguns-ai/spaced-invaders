@@ -2,7 +2,7 @@ export type EnemyType = 'squid' | 'crab' | 'octopus' | 'ufo' | 'elite_ufo' | 'ar
 export type Difficulty = 'easy' | 'medium' | 'hard';
 export type GameMode = '1p' | '2p';
 export type WeaponTier = 1 | 2 | 3 | 4 | 5;
-export type WeaponArchetype = 'vulcan' | 'plasma' | 'missiles' | 'laser' | 'scatter' | 'wave';
+export type WeaponArchetype = 'vulcan' | 'plasma' | 'missiles' | 'laser' | 'scatter' | 'wave' | 'flamethrower' | 'lightning';
 
 export type PowerUpType =
   | 'weapon_vulcan'
@@ -11,6 +11,10 @@ export type PowerUpType =
   | 'weapon_laser'
   | 'weapon_scatter'
   | 'weapon_wave'
+  | 'weapon_flamethrower'
+  | 'weapon_lightning'
+  | 'mystery_weapon'
+  | 'wingman_ship'
   | 'mortar_ammo'
   | 'shield_charge'
   | 'extra_life'
@@ -47,6 +51,7 @@ export interface Bullet {
   piercing?: boolean;
   isHoming?: boolean;
   isMothershipBomb?: boolean;
+  isEmpBomb?: boolean;
   isDud?: boolean;
   isMortar?: boolean;
   targetY?: number;
@@ -65,6 +70,7 @@ export interface BombExplosion {
   maxRadius: number;
   isNuke?: boolean;
   isMothershipBlast?: boolean;
+  isEmpNuke?: boolean;
   alpha: number;
   color: string;
   duration: number;
@@ -188,6 +194,13 @@ export interface PlayerData {
   shieldActiveUntil: number;    // timestamp ms when shield expires (3 seconds active)
   lastShot: number;
   invulnerableUntil: number;
+  empDisabledUntil: number;    // disabled from firing if hit by EMP nuke
+  holdShootTime: number;       // tracks duration spacebar held down to slow rate of fire
+  attachedShips: {
+    id: number;
+    offset: -22 | 22; // left (-22) or right (+22) wingman
+    alive: boolean;
+  }[];
   color: string;
   label: string;
 }

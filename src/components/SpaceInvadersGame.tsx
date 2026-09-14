@@ -663,6 +663,120 @@ export function SpaceInvadersGame() {
     });
   };
 
+  // Helper to destroy mystery ship and award points + drops
+  const destroyMysteryShip = (scoringPlayer: PlayerData) => {
+    const s = stateRef.current;
+    if (!s.mysteryShip.active) return;
+    s.mysteryShip.active = false;
+    s.mysteryShipTimer = 0;
+    s.nextMysteryTime = 16000 + Math.random() * 15000;
+
+    scoringPlayer.score += s.mysteryShip.points;
+    triggerScreenShake(8, 400);
+    soundManager.playAlienExplosion();
+    spawnEnemyDestructionSparks(
+      s.mysteryShip.x + s.mysteryShip.width / 2,
+      s.mysteryShip.y + s.mysteryShip.height / 2,
+      '#f43f5e',
+      2.8,
+      'mothership'
+    );
+
+    s.floatingIdCounter++;
+    s.floatingTexts.push({
+      id: s.floatingIdCounter,
+      x: s.mysteryShip.x + 10,
+      y: s.mysteryShip.y,
+      text: `+${s.mysteryShip.points} (${scoringPlayer.label})`,
+      color: '#f43f5e',
+      alpha: 1,
+      vy: -0.9,
+    });
+
+    const roll = Math.random();
+    let pType: PowerUpType;
+    let label = 'W';
+    let name = 'Weapon';
+    let color = '#38bdf8';
+    let glowColor = 'rgba(56, 189, 248, 0.9)';
+
+    if (roll < 0.04) {
+      pType = 'extra_life';
+      label = '❤️1UP';
+      name = '+1 Life';
+      color = '#f43f5e';
+      glowColor = 'rgba(244, 63, 94, 0.95)';
+    } else if (roll < 0.2) {
+      pType = 'shield_charge';
+      label = '🛡️+1';
+      name = '+1 Shield';
+      color = '#a855f7';
+      glowColor = 'rgba(168, 85, 247, 0.95)';
+    } else if (roll < 0.45) {
+      pType = 'mortar_ammo';
+      label = '💣MTR';
+      name = '+3 Mortar Shells';
+      color = '#ea580c';
+      glowColor = 'rgba(234, 88, 12, 0.95)';
+    } else {
+      const weaponTypes: WeaponArchetype[] = ['vulcan', 'plasma', 'missiles', 'laser', 'scatter', 'wave'];
+      const chosenWeapon = weaponTypes[Math.floor(Math.random() * weaponTypes.length)];
+
+      if (chosenWeapon === 'vulcan') {
+        pType = 'weapon_vulcan';
+        label = '⚡V';
+        name = 'Vulcan Rapid';
+        color = '#38bdf8';
+        glowColor = 'rgba(56, 189, 248, 0.9)';
+      } else if (chosenWeapon === 'plasma') {
+        pType = 'weapon_plasma';
+        label = '⚡P';
+        name = 'Plasma Piercer';
+        color = '#f43f5e';
+        glowColor = 'rgba(244, 63, 94, 0.9)';
+      } else if (chosenWeapon === 'missiles') {
+        pType = 'weapon_missiles';
+        label = '🚀M';
+        name = 'Homing Missiles';
+        color = '#f59e0b';
+        glowColor = 'rgba(245, 158, 11, 0.9)';
+      } else if (chosenWeapon === 'scatter') {
+        pType = 'weapon_scatter';
+        label = '💥S';
+        name = 'Scatter Flak';
+        color = '#eab308';
+        glowColor = 'rgba(234, 179, 8, 0.9)';
+      } else if (chosenWeapon === 'wave') {
+        pType = 'weapon_wave';
+        label = '〰W';
+        name = 'Sonic Wave';
+        color = '#10b981';
+        glowColor = 'rgba(16, 185, 129, 0.9)';
+      } else {
+        pType = 'weapon_laser';
+        label = '⚡L';
+        name = 'Rail Laser';
+        color = '#c084fc';
+        glowColor = 'rgba(192, 132, 252, 0.9)';
+      }
+    }
+
+    s.powerUpIdCounter++;
+    s.powerUps.push({
+      id: s.powerUpIdCounter,
+      x: s.mysteryShip.x + s.mysteryShip.width / 2,
+      y: s.mysteryShip.y + s.mysteryShip.height,
+      width: 28,
+      height: 22,
+      vy: 1.5,
+      type: pType,
+      label,
+      name,
+      color,
+      glowColor,
+    });
+  };
+
   // Spawn enemy fleet or Boss according to wave
   const spawnFleet = useCallback((waveNum: number, diff: Difficulty) => {
     const s = stateRef.current;
@@ -766,6 +880,13 @@ export function SpaceInvadersGame() {
           }
         }
 
+        // Alien Health Scaling: "higher lvl aliens from lvl 3 onwards start to be able to take more damage"
+        if (waveNum >= 3) {
+          // Additional HP bonus based on wave progress for tier rows (squids, crabs, armored, hunters)
+          const tierBonus = r === 0 ? Math.floor((waveNum - 1) / 2) : r <= 2 ? Math.floor((waveNum - 2) / 3) : Math.floor((waveNum - 3) / 4);
+          actualHealth += tierBonus;
+        }
+
         id++;
         enemies.push({
           id,
@@ -774,7 +895,7 @@ export function SpaceInvadersGame() {
           width: 36,
           height: 24,
           type: actualType,
-          points: actualPoints,
+          points: actualPoints + (actualHealth > 1 ? (actualHealth - 1) * 10 : 0),
           health: actualHealth,
           maxHealth: actualHealth,
           color: actualColor,
@@ -1114,8 +1235,8 @@ export function SpaceInvadersGame() {
             playerId: 1,
             isMortar: true,
             targetY,
-            mortarRadius: 80 + chargeRatio * 35, // increased blast radius (80px up to 115px)
-            damage: 5 + Math.round(chargeRatio * 3),
+            mortarRadius: 80 + chargeRatio * 80, // Dynamic blast radius: 80px up to 160px depending on charge
+            damage: 6 + Math.round(chargeRatio * 6),
           });
         }
       }
@@ -2019,14 +2140,44 @@ export function SpaceInvadersGame() {
               maxDuration: 28,
             });
 
-            // Damage all enemies in mortar blast radius
-            for (const e of s.enemies) {
-              if (e.health <= 0) continue;
-              const dist = Math.hypot(e.x + e.width / 2 - b.x, e.y + e.height / 2 - b.y);
-              if (dist <= blastRadius + 12) {
+            const scoringPlayer = b.playerId === 2 ? s.p2 : s.p1;
+
+            // Check Mothership damage first ("max aliens it can take out is one mother ship, or up to 6 normal aliens")
+            let hitMothership = false;
+            if (s.mysteryShip.active) {
+              const msDist = Math.hypot(
+                s.mysteryShip.x + s.mysteryShip.width / 2 - b.x,
+                s.mysteryShip.y + s.mysteryShip.height / 2 - b.y
+              );
+              if (msDist <= blastRadius + s.mysteryShip.width / 2) {
+                hitMothership = true;
+                s.mysteryShip.health -= (b.damage || 4);
+                spawnExplosion(b.x, b.y, '#f43f5e', 12);
+                if (s.mysteryShip.health <= 0) {
+                  destroyMysteryShip(scoringPlayer);
+                }
+              }
+            }
+
+            // If not consumed taking out a mothership, damage up to 6 closest normal aliens in blast radius
+            if (!hitMothership) {
+              const candidates: { enemy: Enemy; dist: number }[] = [];
+              for (const e of s.enemies) {
+                if (e.health <= 0) continue;
+                const dist = Math.hypot(e.x + e.width / 2 - b.x, e.y + e.height / 2 - b.y);
+                if (dist <= blastRadius + 12) {
+                  candidates.push({ enemy: e, dist });
+                }
+              }
+              // Sort by proximity to explosion epicenter
+              candidates.sort((c1, c2) => c1.dist - c2.dist);
+              const maxTargets = 6;
+              const targets = candidates.slice(0, maxTargets);
+
+              for (const { enemy: e } of targets) {
                 e.health -= b.damage || 4;
                 if (e.health <= 0) {
-                  s.p1.score += e.points;
+                  scoringPlayer.score += e.points;
                   spawnEnemyDestructionSparks(e.x + e.width / 2, e.y + e.height / 2, e.color, 1.25, e.type);
                 }
               }
@@ -2286,118 +2437,8 @@ export function SpaceInvadersGame() {
             spawnExplosion(b.x, b.y, '#f43f5e', 8);
 
             if (s.mysteryShip.health <= 0) {
-              s.mysteryShip.active = false;
-              s.mysteryShipTimer = 0;
-              s.nextMysteryTime = 16000 + Math.random() * 15000;
-
               const scoringPlayer = b.playerId === 2 ? s.p2 : s.p1;
-              scoringPlayer.score += s.mysteryShip.points;
-
-              triggerScreenShake(8, 400);
-              soundManager.playAlienExplosion();
-              // Spectacular mothership colorful spark explosion
-              spawnEnemyDestructionSparks(
-                s.mysteryShip.x + s.mysteryShip.width / 2,
-                s.mysteryShip.y + s.mysteryShip.height / 2,
-                '#f43f5e',
-                2.8,
-                'mothership'
-              );
-
-              s.floatingIdCounter++;
-              s.floatingTexts.push({
-                id: s.floatingIdCounter,
-                x: s.mysteryShip.x + 10,
-                y: s.mysteryShip.y,
-                text: `+${s.mysteryShip.points} (${scoringPlayer.label})`,
-                color: '#f43f5e',
-                alpha: 1,
-                vy: -0.9,
-              });
-
-              // 1 in 25 (4%) extra life, 1 in 5 (20%) extra shield, 1 in 4 (25%) mortar ammo, rest weapon upgrades
-              const roll = Math.random();
-              let pType: PowerUpType;
-              let label = 'W';
-              let name = 'Weapon';
-              let color = '#38bdf8';
-              let glowColor = 'rgba(56, 189, 248, 0.9)';
-
-              if (roll < 0.04) {
-                pType = 'extra_life';
-                label = '❤️1UP';
-                name = '+1 Life';
-                color = '#f43f5e';
-                glowColor = 'rgba(244, 63, 94, 0.95)';
-              } else if (roll < 0.20) {
-                pType = 'shield_charge';
-                label = '🛡️+1';
-                name = '+1 Shield';
-                color = '#a855f7';
-                glowColor = 'rgba(168, 85, 247, 0.95)';
-              } else if (roll < 0.45) {
-                pType = 'mortar_ammo';
-                label = '💣MTR';
-                name = '+3 Mortar Shells';
-                color = '#ea580c';
-                glowColor = 'rgba(234, 88, 12, 0.95)';
-              } else {
-                const weaponTypes: WeaponArchetype[] = ['vulcan', 'plasma', 'missiles', 'laser', 'scatter', 'wave'];
-                const chosenWeapon = weaponTypes[Math.floor(Math.random() * weaponTypes.length)];
-
-                if (chosenWeapon === 'vulcan') {
-                  pType = 'weapon_vulcan';
-                  label = '⚡V';
-                  name = 'Vulcan Rapid';
-                  color = '#38bdf8';
-                  glowColor = 'rgba(56, 189, 248, 0.9)';
-                } else if (chosenWeapon === 'plasma') {
-                  pType = 'weapon_plasma';
-                  label = '⚡P';
-                  name = 'Plasma Piercer';
-                  color = '#f43f5e';
-                  glowColor = 'rgba(244, 63, 94, 0.9)';
-                } else if (chosenWeapon === 'missiles') {
-                  pType = 'weapon_missiles';
-                  label = '🚀M';
-                  name = 'Homing Missiles';
-                  color = '#f59e0b';
-                  glowColor = 'rgba(245, 158, 11, 0.9)';
-                } else if (chosenWeapon === 'scatter') {
-                  pType = 'weapon_scatter';
-                  label = '💥S';
-                  name = 'Scatter Flak';
-                  color = '#eab308';
-                  glowColor = 'rgba(234, 179, 8, 0.9)';
-                } else if (chosenWeapon === 'wave') {
-                  pType = 'weapon_wave';
-                  label = '〰W';
-                  name = 'Sonic Wave';
-                  color = '#10b981';
-                  glowColor = 'rgba(16, 185, 129, 0.9)';
-                } else {
-                  pType = 'weapon_laser';
-                  label = '⚡L';
-                  name = 'Rail Laser';
-                  color = '#c084fc';
-                  glowColor = 'rgba(192, 132, 252, 0.9)';
-                }
-              }
-
-              s.powerUpIdCounter++;
-              s.powerUps.push({
-                id: s.powerUpIdCounter,
-                x: s.mysteryShip.x + s.mysteryShip.width / 2,
-                y: s.mysteryShip.y + s.mysteryShip.height,
-                width: 28,
-                height: 22,
-                vy: 1.5,
-                type: pType,
-                label,
-                name,
-                color,
-                glowColor,
-              });
+              destroyMysteryShip(scoringPlayer);
             }
             continue;
           }
@@ -2631,21 +2672,35 @@ export function SpaceInvadersGame() {
               triggerScreenShake(12, 500);
               spawnExplosion(p.x + p.width / 2, p.y + p.height / 2, p.color, 35);
 
-              // Weapon drops to base on death
-              p.weaponTier = 1;
-              p.weaponType = 'vulcan';
-              p.weaponTimeRemaining = 0;
-
-              s.floatingIdCounter++;
-              s.floatingTexts.push({
-                id: s.floatingIdCounter,
-                x: p.x - 14,
-                y: p.y - 18,
-                text: `${p.label} WEAPON RESET TO BASE!`,
-                color: '#ef4444',
-                alpha: 1,
-                vy: -0.8,
-              });
+              // Weapon drops back to the previous level on hit instead of resetting to base
+              if (p.weaponTier > 1) {
+                p.weaponTier = (p.weaponTier - 1) as WeaponTier;
+                p.weaponAmmo = 30 + Math.floor(Math.random() * 31);
+                s.floatingIdCounter++;
+                s.floatingTexts.push({
+                  id: s.floatingIdCounter,
+                  x: p.x - 14,
+                  y: p.y - 18,
+                  text: `${p.label} WEAPON LEVEL DOWN -> LVL ${p.weaponTier}!`,
+                  color: '#f59e0b',
+                  alpha: 1,
+                  vy: -0.8,
+                });
+              } else {
+                p.weaponTier = 1;
+                p.weaponType = 'vulcan';
+                p.weaponAmmo = 0;
+                s.floatingIdCounter++;
+                s.floatingTexts.push({
+                  id: s.floatingIdCounter,
+                  x: p.x - 14,
+                  y: p.y - 18,
+                  text: `${p.label} WEAPON BASE LEVEL`,
+                  color: '#ef4444',
+                  alpha: 1,
+                  vy: -0.8,
+                });
+              }
 
               if (p.lives <= 0) {
                 p.alive = false;
@@ -2869,6 +2924,19 @@ export function SpaceInvadersGame() {
         }
 
         drawPixelPattern(ctx, sprite, e.x, e.y, pixelSize, e.color);
+
+        // Health bar indicator for high-HP aliens (lvl 3+ or armored)
+        if (e.maxHealth > 1) {
+          const barW = e.width;
+          const barH = 3;
+          const barX = e.x;
+          const barY = e.y - 5;
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+          ctx.fillRect(barX, barY, barW, barH);
+          const hpPct = Math.max(0, e.health / e.maxHealth);
+          ctx.fillStyle = hpPct > 0.5 ? '#22c55e' : hpPct > 0.25 ? '#f59e0b' : '#ef4444';
+          ctx.fillRect(barX, barY, barW * hpPct, barH);
+        }
       }
 
       // Draw Power-Up Capsules
@@ -2916,6 +2984,79 @@ export function SpaceInvadersGame() {
             ctx.fillStyle = '#ffffff';
             ctx.font = 'bold 10px monospace';
             ctx.fillText(`${timeLeftSec}s`, p.x + p.width / 2, p.y - 12);
+            ctx.restore();
+          }
+
+          // Visual Charge-Up for Mortar when holding button:
+          // "need a visual charge up for the mortor when your holding the button, make the higher it goes the bigger the blast radius"
+          if (s.keys.p1Mortar && p.id === 1 && p.mortarAmmo > 0 && p.mortarChargeStart > 0) {
+            const holdTime = Math.min(2500, Math.max(0, nowMs - p.mortarChargeStart));
+            const chargeRatio = Math.min(1, holdTime / 2350);
+            const targetY = 420 - chargeRatio * 340;
+            const currentBlastRadius = 80 + chargeRatio * 80;
+            const centerX = p.x + p.width / 2;
+
+            ctx.save();
+
+            // 1. Charge meter gauge directly beneath ship
+            const gaugeW = 44;
+            const gaugeH = 6;
+            const gaugeX = centerX - gaugeW / 2;
+            const gaugeY = p.y + p.height + 6;
+
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+            ctx.strokeStyle = '#f97316';
+            ctx.lineWidth = 1.2;
+            ctx.fillRect(gaugeX, gaugeY, gaugeW, gaugeH);
+            ctx.strokeRect(gaugeX, gaugeY, gaugeW, gaugeH);
+
+            const chargeColor = chargeRatio < 0.35 ? '#facc15' : chargeRatio < 0.75 ? '#f97316' : '#ef4444';
+            ctx.fillStyle = chargeColor;
+            ctx.fillRect(gaugeX + 1, gaugeY + 1, (gaugeW - 2) * chargeRatio, gaugeH - 2);
+
+            // Text tag under gauge
+            ctx.fillStyle = chargeColor;
+            ctx.font = 'bold 9px monospace';
+            ctx.textAlign = 'center';
+            const pct = Math.round(chargeRatio * 100);
+            ctx.fillText(`MTR CHARGE ${pct}% [R:${Math.round(currentBlastRadius)}px]`, centerX, gaugeY + 16);
+
+            // 2. Trajectory aim line to target altitude
+            ctx.setLineDash([4, 4]);
+            ctx.strokeStyle = chargeRatio >= 0.95 ? 'rgba(239, 68, 68, 0.75)' : 'rgba(249, 115, 22, 0.6)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(centerX, p.y - 6);
+            ctx.lineTo(centerX, targetY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // 3. Target Apex Reticle & Projected Blast Radius Circle
+            const pulse = Math.sin(nowMs * 0.01) * 3;
+            ctx.strokeStyle = chargeRatio >= 0.95 ? '#ef4444' : '#f97316';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(centerX, targetY, currentBlastRadius + pulse, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Reticle crosshair at target center
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(centerX, targetY, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(centerX - 10, targetY);
+            ctx.lineTo(centerX + 10, targetY);
+            ctx.moveTo(centerX, targetY - 10);
+            ctx.lineTo(centerX, targetY + 10);
+            ctx.stroke();
+
+            // Altitude indicator label
+            ctx.fillStyle = '#fef08a';
+            ctx.font = 'bold 10px monospace';
+            ctx.fillText(`💣 APEX ALTITUDE (BLAST ${Math.round(currentBlastRadius)}px)`, centerX, targetY - 14);
+
             ctx.restore();
           }
         }
@@ -3370,8 +3511,8 @@ export function SpaceInvadersGame() {
         playerId: 1,
         isMortar: true,
         targetY,
-        mortarRadius: 80 + chargeRatio * 35, // increased blast radius (80px up to 115px)
-        damage: 5 + Math.round(chargeRatio * 3),
+        mortarRadius: 80 + chargeRatio * 80, // Dynamic blast radius: 80px up to 160px depending on charge
+        damage: 6 + Math.round(chargeRatio * 6),
       });
     }
   };
@@ -3679,9 +3820,10 @@ export function SpaceInvadersGame() {
       </div>
 
       {/* Touch and Mobile Gameplay Controls */}
-      <div className="w-full max-w-4xl bg-neutral-900 border-x border-b border-neutral-700 rounded-b-xl px-2.5 sm:px-4 py-3 flex flex-wrap items-center justify-between gap-2.5 select-none touch-manipulation">
-        {/* On-screen touch directional buttons */}
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+      <div className="w-full max-w-4xl bg-neutral-900 border-x border-b border-neutral-700 rounded-b-xl px-2 sm:px-4 py-3 select-none touch-manipulation">
+        {/* Ergonomic Two-Thumb Mobile Layout: ◀ on far left, action buttons in middle, ▶ on far right */}
+        <div className="flex items-center justify-between gap-2 w-full">
+          {/* Far Left: Left Thumb Move Left */}
           <button
             id="mobile-btn-left"
             onMouseDown={handleTouchP1LeftStart}
@@ -3689,11 +3831,86 @@ export function SpaceInvadersGame() {
             onMouseLeave={handleTouchP1LeftEnd}
             onTouchStart={handleTouchP1LeftStart}
             onTouchEnd={handleTouchP1LeftEnd}
-            className="w-13 h-11 bg-neutral-800 hover:bg-neutral-700 active:bg-emerald-600 text-neutral-200 border border-neutral-600 rounded-lg flex items-center justify-center font-bold text-lg cursor-pointer transition-colors shadow-sm select-none"
+            className="w-14 h-12 bg-neutral-800 hover:bg-neutral-700 active:bg-emerald-600 text-neutral-100 border-2 border-neutral-600 active:border-emerald-400 rounded-xl flex items-center justify-center font-bold text-2xl cursor-pointer transition-colors shadow-md select-none shrink-0"
             aria-label="Move Left"
           >
             ◀
           </button>
+
+          {/* Center Action Buttons: FIRE, 💣 MTR, 🛡️ SHIELD */}
+          <div className="flex items-center justify-center gap-1.5 sm:gap-2 flex-wrap flex-1 px-1">
+            <button
+              id="mobile-btn-fire"
+              onMouseDown={handleTouchP1Shoot}
+              onTouchStart={handleTouchP1Shoot}
+              className="h-12 px-4 sm:px-6 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-mono font-bold text-sm tracking-wide rounded-xl flex items-center justify-center border-2 border-red-400 shadow-md cursor-pointer transition-colors select-none"
+              aria-label="Fire Weapon"
+            >
+              FIRE 💥
+            </button>
+            <button
+              id="mobile-btn-mortar"
+              onMouseDown={handleTouchMortarStart}
+              onMouseUp={handleTouchMortarEnd}
+              onMouseLeave={handleTouchMortarEnd}
+              onTouchStart={handleTouchMortarStart}
+              onTouchEnd={handleTouchMortarEnd}
+              disabled={p1State.mortarAmmo <= 0}
+              className="h-12 px-3 bg-amber-700 hover:bg-amber-600 active:bg-amber-800 disabled:opacity-40 text-white font-mono font-bold text-xs tracking-wide rounded-xl flex items-center justify-center border-2 border-amber-400 shadow-md cursor-pointer transition-colors select-none"
+              aria-label="Hold to charge mortar"
+              title="Hold to charge height, release to launch mortar"
+            >
+              💣 MTR ({p1State.mortarAmmo})
+            </button>
+            <button
+              id="mobile-btn-shield"
+              onClick={() => deployShield(1)}
+              disabled={p1State.shields <= 0 || p1State.shieldActive}
+              className="h-12 px-3 bg-purple-700 hover:bg-purple-600 active:bg-purple-800 disabled:opacity-40 text-white font-mono font-bold text-xs tracking-wide rounded-xl flex items-center justify-center border-2 border-purple-400 shadow-md cursor-pointer transition-colors select-none"
+              aria-label="Deploy Shield"
+            >
+              🛡️ SHIELD
+            </button>
+
+            {/* 2P Mobile Controls if 2P Mode active */}
+            {gameMode === '2p' && (
+              <div className="flex items-center gap-1.5 pl-2 border-l border-neutral-700">
+                <span className="text-cyan-400 font-bold text-xs font-mono">2P:</span>
+                <button
+                  id="mobile-2p-btn-left"
+                  onMouseDown={handleTouchP2LeftStart}
+                  onMouseUp={handleTouchP2LeftEnd}
+                  onMouseLeave={handleTouchP2LeftEnd}
+                  onTouchStart={handleTouchP2LeftStart}
+                  onTouchEnd={handleTouchP2LeftEnd}
+                  className="w-10 h-11 bg-neutral-800 hover:bg-neutral-700 active:bg-cyan-600 text-neutral-200 border border-neutral-600 rounded-lg flex items-center justify-center font-bold text-base cursor-pointer select-none"
+                >
+                  ◀
+                </button>
+                <button
+                  id="mobile-2p-btn-right"
+                  onMouseDown={handleTouchP2RightStart}
+                  onMouseUp={handleTouchP2RightEnd}
+                  onMouseLeave={handleTouchP2RightEnd}
+                  onTouchStart={handleTouchP2RightStart}
+                  onTouchEnd={handleTouchP2RightEnd}
+                  className="w-10 h-11 bg-neutral-800 hover:bg-neutral-700 active:bg-cyan-600 text-neutral-200 border border-neutral-600 rounded-lg flex items-center justify-center font-bold text-base cursor-pointer select-none"
+                >
+                  ▶
+                </button>
+                <button
+                  id="mobile-2p-btn-fire"
+                  onMouseDown={handleTouchP2Shoot}
+                  onTouchStart={handleTouchP2Shoot}
+                  className="h-11 px-3 bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 text-white font-mono font-bold text-xs rounded-lg flex items-center justify-center border border-cyan-400 shadow-md cursor-pointer select-none"
+                >
+                  2P FIRE
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Far Right: Right Thumb Move Right */}
           <button
             id="mobile-btn-right"
             onMouseDown={handleTouchP1RightStart}
@@ -3701,101 +3918,46 @@ export function SpaceInvadersGame() {
             onMouseLeave={handleTouchP1RightEnd}
             onTouchStart={handleTouchP1RightStart}
             onTouchEnd={handleTouchP1RightEnd}
-            className="w-13 h-11 bg-neutral-800 hover:bg-neutral-700 active:bg-emerald-600 text-neutral-200 border border-neutral-600 rounded-lg flex items-center justify-center font-bold text-lg cursor-pointer transition-colors shadow-sm select-none"
+            className="w-14 h-12 bg-neutral-800 hover:bg-neutral-700 active:bg-emerald-600 text-neutral-100 border-2 border-neutral-600 active:border-emerald-400 rounded-xl flex items-center justify-center font-bold text-2xl cursor-pointer transition-colors shadow-md select-none shrink-0"
             aria-label="Move Right"
           >
             ▶
           </button>
-          <button
-            id="mobile-btn-fire"
-            onMouseDown={handleTouchP1Shoot}
-            onTouchStart={handleTouchP1Shoot}
-            className="h-11 px-5 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-mono font-bold text-sm tracking-wide rounded-lg flex items-center justify-center border border-red-400 shadow-md cursor-pointer transition-colors select-none"
-            aria-label="Fire Weapon"
-          >
-            FIRE 💥
-          </button>
-          <button
-            id="mobile-btn-mortar"
-            onMouseDown={handleTouchMortarStart}
-            onMouseUp={handleTouchMortarEnd}
-            onMouseLeave={handleTouchMortarEnd}
-            onTouchStart={handleTouchMortarStart}
-            onTouchEnd={handleTouchMortarEnd}
-            disabled={p1State.mortarAmmo <= 0}
-            className="h-11 px-3.5 bg-amber-700 hover:bg-amber-600 active:bg-amber-800 disabled:opacity-40 text-white font-mono font-bold text-xs tracking-wide rounded-lg flex items-center justify-center border border-amber-400 shadow-md cursor-pointer transition-colors select-none"
-            aria-label="Hold to charge mortar"
-            title="Hold to charge height, release to launch mortar"
-          >
-            💣 MTR ({p1State.mortarAmmo})
-          </button>
-          <button
-            id="mobile-btn-shield"
-            onClick={() => deployShield(1)}
-            disabled={p1State.shields <= 0 || p1State.shieldActive}
-            className="h-11 px-3.5 bg-purple-700 hover:bg-purple-600 active:bg-purple-800 disabled:opacity-40 text-white font-mono font-bold text-xs tracking-wide rounded-lg flex items-center justify-center border border-purple-400 shadow-md cursor-pointer transition-colors select-none"
-            aria-label="Deploy Shield"
-          >
-            🛡️ SHIELD
-          </button>
-
-          {/* 2P Mobile Controls if 2P Mode active */}
-          {gameMode === '2p' && (
-            <div className="flex items-center gap-1.5 pl-2 border-l border-neutral-700">
-              <span className="text-cyan-400 font-bold text-xs font-mono">2P:</span>
-              <button
-                id="mobile-2p-btn-left"
-                onMouseDown={handleTouchP2LeftStart}
-                onMouseUp={handleTouchP2LeftEnd}
-                onMouseLeave={handleTouchP2LeftEnd}
-                onTouchStart={handleTouchP2LeftStart}
-                onTouchEnd={handleTouchP2LeftEnd}
-                className="w-10 h-11 bg-neutral-800 hover:bg-neutral-700 active:bg-cyan-600 text-neutral-200 border border-neutral-600 rounded-lg flex items-center justify-center font-bold text-base cursor-pointer select-none"
-              >
-                ◀
-              </button>
-              <button
-                id="mobile-2p-btn-right"
-                onMouseDown={handleTouchP2RightStart}
-                onMouseUp={handleTouchP2RightEnd}
-                onMouseLeave={handleTouchP2RightEnd}
-                onTouchStart={handleTouchP2RightStart}
-                onTouchEnd={handleTouchP2RightEnd}
-                className="w-10 h-11 bg-neutral-800 hover:bg-neutral-700 active:bg-cyan-600 text-neutral-200 border border-neutral-600 rounded-lg flex items-center justify-center font-bold text-base cursor-pointer select-none"
-              >
-                ▶
-              </button>
-              <button
-                id="mobile-2p-btn-fire"
-                onMouseDown={handleTouchP2Shoot}
-                onTouchStart={handleTouchP2Shoot}
-                className="h-11 px-4 bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 text-white font-mono font-bold text-xs rounded-lg flex items-center justify-center border border-cyan-400 shadow-md cursor-pointer select-none"
-              >
-                2P FIRE
-              </button>
-            </div>
-          )}
         </div>
 
-        {/* Action button triggers */}
-        <div className="flex items-center gap-2 font-mono text-xs">
-          {gameState === 'playing' ? (
-            <button
-              id="pause-game-btn"
-              onClick={togglePause}
-              className="px-3 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border border-neutral-600 rounded-lg cursor-pointer transition-colors"
-            >
-              PAUSE (P)
-            </button>
-          ) : gameState === 'paused' ? (
-            <button
-              id="resume-game-btn"
-              onClick={togglePause}
-              className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg cursor-pointer transition-colors"
-            >
-              RESUME (P)
-            </button>
-          ) : (
+        {/* Secondary Bar: Pause / Restart / Start */}
+        <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-neutral-800/80">
+          <div className="flex items-center gap-2 font-mono text-xs">
+            {gameState === 'playing' ? (
+              <button
+                id="pause-game-btn"
+                onClick={togglePause}
+                className="px-3 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border border-neutral-600 rounded-lg cursor-pointer transition-colors"
+              >
+                PAUSE (P)
+              </button>
+            ) : gameState === 'paused' ? (
+              <button
+                id="resume-game-btn"
+                onClick={togglePause}
+                className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg cursor-pointer transition-colors"
+              >
+                RESUME (P)
+              </button>
+            ) : null}
+
+            {gameState !== 'title' && (
+              <button
+                id="restart-game-btn"
+                onClick={restartGame}
+                className="px-3 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-neutral-200 border border-neutral-700 rounded-lg cursor-pointer transition-colors"
+              >
+                RESET (R)
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 font-mono text-xs">
             <button
               id="start-game-btn"
               onClick={() => {
@@ -3806,17 +3968,7 @@ export function SpaceInvadersGame() {
             >
               {credits > 0 ? (gameMode === '2p' ? '2P START (SPACE)' : '1P START (SPACE)') : 'INSERT COIN (C)'}
             </button>
-          )}
-
-          {gameState !== 'title' && (
-            <button
-              id="restart-game-btn"
-              onClick={restartGame}
-              className="px-3 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-neutral-200 border border-neutral-700 rounded-lg cursor-pointer transition-colors"
-            >
-              RESET (R)
-            </button>
-          )}
+          </div>
         </div>
       </div>
 

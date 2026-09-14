@@ -779,6 +779,56 @@ class SoundManager {
       // Audio errors safely ignored
     }
   }
+
+  public playEmpBlast(): void {
+    if (this.muted) return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    try {
+      // Deep low-frequency sub-bass shock boom + sizzle
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(140, now);
+      osc.frequency.exponentialRampToValueAtTime(25, now + 0.7);
+
+      gain.gain.setValueAtTime(0.35, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.7);
+
+      // Noise flash crackle
+      const bufferSize = ctx.sampleRate * 0.35;
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const output = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        output[i] = Math.random() * 2 - 1;
+      }
+      const noise = ctx.createBufferSource();
+      noise.buffer = buffer;
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'highpass';
+      filter.frequency.setValueAtTime(1200, now);
+      filter.frequency.exponentialRampToValueAtTime(200, now + 0.35);
+
+      const noiseGain = ctx.createGain();
+      noiseGain.gain.setValueAtTime(0.28, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+      noise.connect(filter);
+      filter.connect(noiseGain);
+      noiseGain.connect(ctx.destination);
+      noise.start(now);
+      noise.stop(now + 0.35);
+    } catch {
+      // Audio errors safely ignored
+    }
+  }
 }
 
 export const soundManager = new SoundManager();

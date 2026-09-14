@@ -1,13 +1,13 @@
 import { HighScoreEntry, Difficulty, GameMode } from '../types';
 
-const STORAGE_KEY = 'space_invaders_hall_of_fame_v2';
+const STORAGE_KEY = 'space_invaders_hall_of_fame_v4';
 
 export const DEFAULT_HALL_OF_FAME: HighScoreEntry[] = [
-  { id: '1', name: 'WOLF-BYTES', score: 50000, wave: 20, mode: '1p', difficulty: 'hard', date: '2026-09-14' },
-  { id: '2', name: 'ACE', score: 9850, wave: 8, mode: '1p', difficulty: 'hard', date: '2026-09-01' },
-  { id: '3', name: 'NEO', score: 7420, wave: 6, mode: '2p', difficulty: 'medium', date: '2026-09-04' },
-  { id: '4', name: 'MAX', score: 5600, wave: 5, mode: '1p', difficulty: 'medium', date: '2026-09-08' },
-  { id: '5', name: 'FOX', score: 4190, wave: 4, mode: '2p', difficulty: 'easy', date: '2026-09-10' },
+  { id: '1', name: 'WOLF-BYTES', score: 1500000, wave: 50, mode: '1p', difficulty: 'hard', date: '2026-09-14' },
+  { id: '2', name: 'FI', score: 850003, wave: 38, mode: '1p', difficulty: 'hard', date: '2026-09-14' },
+  { id: '3', name: 'ACE', score: 9850, wave: 8, mode: '1p', difficulty: 'hard', date: '2026-09-01' },
+  { id: '4', name: 'NEO', score: 7420, wave: 6, mode: '2p', difficulty: 'medium', date: '2026-09-04' },
+  { id: '5', name: 'MAX', score: 5600, wave: 5, mode: '1p', difficulty: 'medium', date: '2026-09-08' },
 ];
 
 export function loadHallOfFame(): HighScoreEntry[] {
@@ -20,10 +20,9 @@ export function loadHallOfFame(): HighScoreEntry[] {
     }
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
-      // Ensure top score is at least 50000 by WOLF-BYTES if not beaten
-      const hasWolfBytes = parsed.some((e: HighScoreEntry) => e.name === 'WOLF-BYTES' && e.score >= 50000);
-      if (!hasWolfBytes && parsed[0].score < 50000) {
-        const merged = [...parsed, DEFAULT_HALL_OF_FAME[0]].sort((a, b) => b.score - a.score).slice(0, 5);
+      const hasWolfBytes = parsed.some((e: HighScoreEntry) => e.name === 'WOLF-BYTES' && e.score >= 1500000);
+      if (!hasWolfBytes) {
+        const merged = [...parsed.filter((e: HighScoreEntry) => e.name !== 'WOLF-BYTES' && e.name !== 'FI'), DEFAULT_HALL_OF_FAME[0], DEFAULT_HALL_OF_FAME[1]].sort((a, b) => b.score - a.score).slice(0, 5);
         saveHallOfFame(merged);
         return merged;
       }
