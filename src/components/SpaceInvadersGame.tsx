@@ -3820,34 +3820,50 @@ export function SpaceInvadersGame() {
       </div>
 
       {/* Touch and Mobile Gameplay Controls */}
-      <div className="w-full max-w-4xl bg-neutral-900 border-x border-b border-neutral-700 rounded-b-xl px-2 sm:px-4 py-3 select-none touch-manipulation">
-        {/* Ergonomic Two-Thumb Mobile Layout: ◀ on far left, action buttons in middle, ▶ on far right */}
-        <div className="flex items-center justify-between gap-2 w-full">
-          {/* Far Left: Left Thumb Move Left */}
+      <div className="w-full max-w-4xl bg-neutral-900 border-x border-b border-neutral-700 rounded-b-xl p-3 sm:p-4 select-none touch-manipulation">
+        {/* Tiered Mobile Layout as requested */}
+        <div className="flex flex-col gap-2.5 w-full max-w-lg mx-auto">
+          {/* Row 1: Big Arrow Buttons Next to Each Other (large and easy to tap) */}
+          <div className="grid grid-cols-2 gap-3 w-full">
+            <button
+              id="mobile-btn-left"
+              onMouseDown={handleTouchP1LeftStart}
+              onMouseUp={handleTouchP1LeftEnd}
+              onMouseLeave={handleTouchP1LeftEnd}
+              onTouchStart={handleTouchP1LeftStart}
+              onTouchEnd={handleTouchP1LeftEnd}
+              className="h-16 sm:h-18 bg-neutral-800 hover:bg-neutral-700 active:bg-emerald-600 text-neutral-100 border-2 border-neutral-600 active:border-emerald-400 rounded-2xl flex items-center justify-center font-bold text-3xl sm:text-4xl cursor-pointer transition-all shadow-lg active:scale-98 select-none"
+              aria-label="Move Left"
+            >
+              ◀
+            </button>
+            <button
+              id="mobile-btn-right"
+              onMouseDown={handleTouchP1RightStart}
+              onMouseUp={handleTouchP1RightEnd}
+              onMouseLeave={handleTouchP1RightEnd}
+              onTouchStart={handleTouchP1RightStart}
+              onTouchEnd={handleTouchP1RightEnd}
+              className="h-16 sm:h-18 bg-neutral-800 hover:bg-neutral-700 active:bg-emerald-600 text-neutral-100 border-2 border-neutral-600 active:border-emerald-400 rounded-2xl flex items-center justify-center font-bold text-3xl sm:text-4xl cursor-pointer transition-all shadow-lg active:scale-98 select-none"
+              aria-label="Move Right"
+            >
+              ▶
+            </button>
+          </div>
+
+          {/* Row 2: Underneath - Long Full-Width FIRE Button */}
           <button
-            id="mobile-btn-left"
-            onMouseDown={handleTouchP1LeftStart}
-            onMouseUp={handleTouchP1LeftEnd}
-            onMouseLeave={handleTouchP1LeftEnd}
-            onTouchStart={handleTouchP1LeftStart}
-            onTouchEnd={handleTouchP1LeftEnd}
-            className="w-14 h-12 bg-neutral-800 hover:bg-neutral-700 active:bg-emerald-600 text-neutral-100 border-2 border-neutral-600 active:border-emerald-400 rounded-xl flex items-center justify-center font-bold text-2xl cursor-pointer transition-colors shadow-md select-none shrink-0"
-            aria-label="Move Left"
+            id="mobile-btn-fire"
+            onMouseDown={handleTouchP1Shoot}
+            onTouchStart={handleTouchP1Shoot}
+            className="w-full h-14 sm:h-16 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-mono font-bold text-lg sm:text-xl tracking-wider rounded-2xl flex items-center justify-center border-2 border-red-400 shadow-xl cursor-pointer transition-all active:scale-98 select-none"
+            aria-label="Fire Weapon"
           >
-            ◀
+            FIRE 💥
           </button>
 
-          {/* Center Action Buttons: FIRE, 💣 MTR, 🛡️ SHIELD */}
-          <div className="flex items-center justify-center gap-1.5 sm:gap-2 flex-wrap flex-1 px-1">
-            <button
-              id="mobile-btn-fire"
-              onMouseDown={handleTouchP1Shoot}
-              onTouchStart={handleTouchP1Shoot}
-              className="h-12 px-4 sm:px-6 bg-red-600 hover:bg-red-500 active:bg-red-700 text-white font-mono font-bold text-sm tracking-wide rounded-xl flex items-center justify-center border-2 border-red-400 shadow-md cursor-pointer transition-colors select-none"
-              aria-label="Fire Weapon"
-            >
-              FIRE 💥
-            </button>
+          {/* Row 3: Underneath - Mortar on Left, Shield on Right */}
+          <div className="grid grid-cols-2 gap-3 w-full">
             <button
               id="mobile-btn-mortar"
               onMouseDown={handleTouchMortarStart}
@@ -3856,73 +3872,59 @@ export function SpaceInvadersGame() {
               onTouchStart={handleTouchMortarStart}
               onTouchEnd={handleTouchMortarEnd}
               disabled={p1State.mortarAmmo <= 0}
-              className="h-12 px-3 bg-amber-700 hover:bg-amber-600 active:bg-amber-800 disabled:opacity-40 text-white font-mono font-bold text-xs tracking-wide rounded-xl flex items-center justify-center border-2 border-amber-400 shadow-md cursor-pointer transition-colors select-none"
+              className="h-13 sm:h-14 bg-amber-700 hover:bg-amber-600 active:bg-amber-800 disabled:opacity-40 text-white font-mono font-bold text-sm sm:text-base tracking-wide rounded-2xl flex items-center justify-center border-2 border-amber-400 shadow-md cursor-pointer transition-all active:scale-98 select-none"
               aria-label="Hold to charge mortar"
               title="Hold to charge height, release to launch mortar"
             >
-              💣 MTR ({p1State.mortarAmmo})
+              💣 MORTAR ({p1State.mortarAmmo})
             </button>
             <button
               id="mobile-btn-shield"
               onClick={() => deployShield(1)}
               disabled={p1State.shields <= 0 || p1State.shieldActive}
-              className="h-12 px-3 bg-purple-700 hover:bg-purple-600 active:bg-purple-800 disabled:opacity-40 text-white font-mono font-bold text-xs tracking-wide rounded-xl flex items-center justify-center border-2 border-purple-400 shadow-md cursor-pointer transition-colors select-none"
+              className="h-13 sm:h-14 bg-purple-700 hover:bg-purple-600 active:bg-purple-800 disabled:opacity-40 text-white font-mono font-bold text-sm sm:text-base tracking-wide rounded-2xl flex items-center justify-center border-2 border-purple-400 shadow-md cursor-pointer transition-all active:scale-98 select-none"
               aria-label="Deploy Shield"
             >
-              🛡️ SHIELD
+              🛡️ SHIELD ({p1State.shields})
             </button>
-
-            {/* 2P Mobile Controls if 2P Mode active */}
-            {gameMode === '2p' && (
-              <div className="flex items-center gap-1.5 pl-2 border-l border-neutral-700">
-                <span className="text-cyan-400 font-bold text-xs font-mono">2P:</span>
-                <button
-                  id="mobile-2p-btn-left"
-                  onMouseDown={handleTouchP2LeftStart}
-                  onMouseUp={handleTouchP2LeftEnd}
-                  onMouseLeave={handleTouchP2LeftEnd}
-                  onTouchStart={handleTouchP2LeftStart}
-                  onTouchEnd={handleTouchP2LeftEnd}
-                  className="w-10 h-11 bg-neutral-800 hover:bg-neutral-700 active:bg-cyan-600 text-neutral-200 border border-neutral-600 rounded-lg flex items-center justify-center font-bold text-base cursor-pointer select-none"
-                >
-                  ◀
-                </button>
-                <button
-                  id="mobile-2p-btn-right"
-                  onMouseDown={handleTouchP2RightStart}
-                  onMouseUp={handleTouchP2RightEnd}
-                  onMouseLeave={handleTouchP2RightEnd}
-                  onTouchStart={handleTouchP2RightStart}
-                  onTouchEnd={handleTouchP2RightEnd}
-                  className="w-10 h-11 bg-neutral-800 hover:bg-neutral-700 active:bg-cyan-600 text-neutral-200 border border-neutral-600 rounded-lg flex items-center justify-center font-bold text-base cursor-pointer select-none"
-                >
-                  ▶
-                </button>
-                <button
-                  id="mobile-2p-btn-fire"
-                  onMouseDown={handleTouchP2Shoot}
-                  onTouchStart={handleTouchP2Shoot}
-                  className="h-11 px-3 bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 text-white font-mono font-bold text-xs rounded-lg flex items-center justify-center border border-cyan-400 shadow-md cursor-pointer select-none"
-                >
-                  2P FIRE
-                </button>
-              </div>
-            )}
           </div>
 
-          {/* Far Right: Right Thumb Move Right */}
-          <button
-            id="mobile-btn-right"
-            onMouseDown={handleTouchP1RightStart}
-            onMouseUp={handleTouchP1RightEnd}
-            onMouseLeave={handleTouchP1RightEnd}
-            onTouchStart={handleTouchP1RightStart}
-            onTouchEnd={handleTouchP1RightEnd}
-            className="w-14 h-12 bg-neutral-800 hover:bg-neutral-700 active:bg-emerald-600 text-neutral-100 border-2 border-neutral-600 active:border-emerald-400 rounded-xl flex items-center justify-center font-bold text-2xl cursor-pointer transition-colors shadow-md select-none shrink-0"
-            aria-label="Move Right"
-          >
-            ▶
-          </button>
+          {/* 2P Mobile Row if 2-Player Co-Op active */}
+          {gameMode === '2p' && (
+            <div className="flex items-center justify-center gap-2 p-2 bg-neutral-950/60 border border-neutral-700 rounded-xl mt-1">
+              <span className="text-cyan-400 font-bold text-xs font-mono">2P CONTROLS:</span>
+              <button
+                id="mobile-2p-btn-left"
+                onMouseDown={handleTouchP2LeftStart}
+                onMouseUp={handleTouchP2LeftEnd}
+                onMouseLeave={handleTouchP2LeftEnd}
+                onTouchStart={handleTouchP2LeftStart}
+                onTouchEnd={handleTouchP2LeftEnd}
+                className="w-12 h-11 bg-neutral-800 hover:bg-neutral-700 active:bg-cyan-600 text-neutral-100 border border-neutral-600 rounded-lg flex items-center justify-center font-bold text-lg cursor-pointer select-none"
+              >
+                ◀
+              </button>
+              <button
+                id="mobile-2p-btn-right"
+                onMouseDown={handleTouchP2RightStart}
+                onMouseUp={handleTouchP2RightEnd}
+                onMouseLeave={handleTouchP2RightEnd}
+                onTouchStart={handleTouchP2RightStart}
+                onTouchEnd={handleTouchP2RightEnd}
+                className="w-12 h-11 bg-neutral-800 hover:bg-neutral-700 active:bg-cyan-600 text-neutral-100 border border-neutral-600 rounded-lg flex items-center justify-center font-bold text-lg cursor-pointer select-none"
+              >
+                ▶
+              </button>
+              <button
+                id="mobile-2p-btn-fire"
+                onMouseDown={handleTouchP2Shoot}
+                onTouchStart={handleTouchP2Shoot}
+                className="h-11 px-4 bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 text-white font-mono font-bold text-xs rounded-lg flex items-center justify-center border border-cyan-400 shadow-md cursor-pointer select-none"
+              >
+                2P FIRE
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Secondary Bar: Pause / Restart / Start */}
