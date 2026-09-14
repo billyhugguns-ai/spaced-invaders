@@ -1114,8 +1114,8 @@ export function SpaceInvadersGame() {
             playerId: 1,
             isMortar: true,
             targetY,
-            mortarRadius: 55 + chargeRatio * 20, // larger blast if charged longer
-            damage: 4 + Math.round(chargeRatio * 2),
+            mortarRadius: 80 + chargeRatio * 35, // increased blast radius (80px up to 115px)
+            damage: 5 + Math.round(chargeRatio * 3),
           });
         }
       }
@@ -1340,8 +1340,8 @@ export function SpaceInvadersGame() {
               playerId: 1,
               isMortar: true,
               targetY: s.boss.active ? s.boss.y + s.boss.height + 15 : 120 + Math.random() * 140,
-              mortarRadius: 60,
-              damage: 5,
+              mortarRadius: 90,
+              damage: 6,
             });
           }
         }
@@ -3370,8 +3370,8 @@ export function SpaceInvadersGame() {
         playerId: 1,
         isMortar: true,
         targetY,
-        mortarRadius: 55 + chargeRatio * 20,
-        damage: 4 + Math.round(chargeRatio * 2),
+        mortarRadius: 80 + chargeRatio * 35, // increased blast radius (80px up to 115px)
+        damage: 5 + Math.round(chargeRatio * 3),
       });
     }
   };
